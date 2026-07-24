@@ -31,7 +31,7 @@ const
 
 type
   TMarkDownBlockKind = (bkParagraph, bkHeading, bkQuote, bkListItem,
-    bkCodeBlock, bkRule, bkTable, bkImage);
+    bkCodeBlock, bkRule, bkTable, bkImage, bkFrontMatter);
 
   // An inline run carries combinable emphasis (Style) so spans can nest,
   // e.g. bold containing italic, or a link whose text is bold. IsCode marks a

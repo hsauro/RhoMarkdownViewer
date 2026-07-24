@@ -40,11 +40,12 @@ object frmMain: TfrmMain
       Text = 'Theme: Light'
       OnClick = btnThemeClick
     end
-    object Button1: TButton
+    object btnUpdate: TButton
       Position.X = 206.000000000000000000
       Position.Y = 11.000000000000000000
       TabOrder = 2
-      Text = 'View'
+      Text = 'Update View'
+      OnClick = btnUpdateClick
     end
     object btnNew: TButton
       Position.X = 8.000000000000000000

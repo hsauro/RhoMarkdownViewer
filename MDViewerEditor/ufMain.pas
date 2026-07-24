@@ -18,7 +18,7 @@ type
     btnOpen: TButton;
     cboCombo: TComboBox;
     btnTheme: TButton;
-    Button1: TButton;
+    btnUpdate: TButton;
     btnNew: TButton;
     Label1: TLabel;
     procedure btnOpenClick(Sender: TObject);
@@ -31,6 +31,7 @@ type
       const Data: TDragObject; const Point: TPointF);
     procedure btnNewClick(Sender: TObject);
     procedure btnThemeClick(Sender: TObject);
+    procedure btnUpdateClick(Sender: TObject);
   private
     { Private declarations }
     // Guards against the two scroll handlers driving each other in a loop:
@@ -102,6 +103,11 @@ begin
   ChangeTheme;
 end;
 
+
+procedure TfrmMain.btnUpdateClick(Sender: TObject);
+begin
+   FViewer.MarkdownText := TextMemo.text;
+end;
 
 procedure TfrmMain.ChangeTheme;
 begin

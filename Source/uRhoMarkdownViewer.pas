@@ -94,6 +94,16 @@ type
 
   TRhoTableRow = TArray<TRhoTableCell>;
 
+  // One key/value row of a YAML front-matter card. Keys share one column width
+  // (KeyLeft..KeyLeft+key column), values wrap in the rest. Tops are relative to
+  // the block's top-left, like table cells.
+  TRhoMetaRow = record
+    KeyPara: ISkParagraph;
+    ValuePara: ISkParagraph;
+    Top: Single;
+    Height: Single;
+  end;
+
   // One laid-out block. This is the display list: hit-testing, link rects, and
   // selection will all read this rather than being rebuilt during paint.
   TRhoBlockLayout = record
@@ -108,6 +118,9 @@ type
     BoxLeft: Single;           // extent of code background / quote bar / rule
     BoxRight: Single;
     Rows: TArray<TRhoTableRow>; // tables only; Rows[0] is the header
+    MetaRows: TArray<TRhoMetaRow>; // front-matter card only
+    MetaKeyLeft: Single;        // where key paragraphs paint (relative to BoxLeft)
+    MetaValueLeft: Single;      // where value paragraphs paint (relative to BoxLeft)
     Image: ISkImage;           // block images only; nil means alt text was used
     ImageRect: TRectF;         // relative to the block top-left
     // Everything spliced into the text flow as a placeholder - inline images
@@ -366,6 +379,11 @@ type
     procedure ContentMouseLeave(Sender: TObject);
     procedure LayoutTable(ABlock: TMarkDownBlock; const AContentLeft,
       AContentWidth: Single; var ALayout: TRhoBlockLayout);
+    // Lays out a YAML front-matter block as a two-column key/value card.
+    procedure LayoutFrontMatter(ABlock: TMarkDownBlock; const AContentLeft,
+      AContentWidth: Single; var ALayout: TRhoBlockLayout);
+    procedure PaintFrontMatter(const ACanvas: ISkCanvas;
+      const ALayout: TRhoBlockLayout; const AScreenTop: Single);
     function ResolveImagePath(const AUrl: string): string;
     function ImageFor(const AUrl: string): ISkImage;
     procedure SetBasePath(const AValue: string);
@@ -1862,6 +1880,170 @@ begin
     end;
 end;
 
+{ ---- front matter ---- }
+
+// Splits YAML-ish front matter into key/value rows. Intentionally shallow: a
+// top-level, unindented "key: value" starts a row; an indented or colon-less
+// line continues the previous value; matching surrounding quotes are stripped.
+// Enough for skill.md / Jekyll headers, not a YAML parser.
+function ParseFrontMatterPairs(const AText: string): TArray<TPair<string, string>>;
+var
+  Lines: TStringList;
+  I, ColonPos: Integer;
+  Line, Key, Val: string;
+  Pairs: TList<TPair<string, string>>;
+
+  function Unquoted(const S: string): string;
+  begin
+    Result := Trim(S);
+    if (Length(Result) >= 2) and
+      (((Result[1] = '"') and (Result[Length(Result)] = '"')) or
+       ((Result[1] = '''') and (Result[Length(Result)] = ''''))) then
+      Result := Copy(Result, 2, Length(Result) - 2);
+  end;
+
+begin
+  Pairs := TList<TPair<string, string>>.Create;
+  Lines := TStringList.Create;
+  try
+    Lines.Text := AText;
+    for I := 0 to Lines.Count - 1 do
+    begin
+      Line := Lines[I];
+      if Trim(Line) = '' then
+        Continue;
+      ColonPos := Pos(':', Line);
+      // A new key: a colon, with a non-blank name, on an unindented line.
+      if (ColonPos > 1) and (Line[1] <> ' ') and (Line[1] <> #9) then
+      begin
+        Key := Trim(Copy(Line, 1, ColonPos - 1));
+        Val := Unquoted(Copy(Line, ColonPos + 1, MaxInt));
+        Pairs.Add(TPair<string, string>.Create(Key, Val));
+      end
+      else if Pairs.Count > 0 then
+      begin
+        // Continuation of the previous value (indented, or a list item).
+        Val := Pairs[Pairs.Count - 1].Value;
+        if Val <> '' then
+          Val := Val + ' ';
+        Val := Val + Trim(Line);
+        Pairs[Pairs.Count - 1] :=
+          TPair<string, string>.Create(Pairs[Pairs.Count - 1].Key, Val);
+      end
+      else
+        // A value with no key (rare); show it in the value column.
+        Pairs.Add(TPair<string, string>.Create('', Unquoted(Line)));
+    end;
+    Result := Pairs.ToArray;
+  finally
+    Lines.Free;
+    Pairs.Free;
+  end;
+end;
+
+procedure TRhoMarkdownViewer.LayoutFrontMatter(ABlock: TMarkDownBlock;
+  const AContentLeft, AContentWidth: Single; var ALayout: TRhoBlockLayout);
+const
+  ColGap = 12;
+var
+  Pairs: TArray<TPair<string, string>>;
+  I: Integer;
+  MaxKeyW, ValW, Y, RowH: Single;
+  ParaStyle: ISkParagraphStyle;
+  Builder: ISkParagraphBuilder;
+  ValPara: ISkParagraph;
+  Flat: TStringBuilder;
+begin
+  ALayout.BoxLeft := AContentLeft;
+  ALayout.BoxRight := AContentLeft + AContentWidth;
+
+  Pairs := ParseFrontMatterPairs(ABlock.Text);
+  SetLength(ALayout.MetaRows, Length(Pairs));
+  if Length(Pairs) = 0 then
+  begin
+    // Empty front matter: a slim panel rather than nothing, so it is visible.
+    ALayout.Height := FFontSize + CodePadding * 2;
+    ALayout.PlainText := '';
+    Exit;
+  end;
+
+  // Key column: widest bold key, capped so a long key cannot crush the values.
+  MaxKeyW := 0;
+  for I := 0 to High(Pairs) do
+  begin
+    ALayout.MetaRows[I].KeyPara :=
+      BuildRun(Pairs[I].Key, BaseTextStyle(FFontSize, True, False));
+    MaxKeyW := Max(MaxKeyW, ALayout.MetaRows[I].KeyPara.LongestLine);
+  end;
+  // A pixel of slack: laying a key out at exactly its intrinsic width makes
+  // Skia wrap the last glyph on float rounding (the same trap as table columns).
+  MaxKeyW := Min(Ceil(MaxKeyW) + 1, (AContentWidth - CodePadding * 2) * 0.4);
+
+  ALayout.MetaKeyLeft := CodePadding;
+  ALayout.MetaValueLeft := CodePadding + MaxKeyW + ColGap;
+  ValW := Max(1, AContentWidth - ALayout.MetaValueLeft - CodePadding);
+
+  Flat := TStringBuilder.Create;
+  try
+    Y := CodePadding;
+    for I := 0 to High(Pairs) do
+    begin
+      ParaStyle := TSkParagraphStyle.Create;
+      ParaStyle.TextStyle := BaseTextStyle(FFontSize, False, False);
+      Builder := TSkParagraphBuilder.Create(ParaStyle);
+      Builder.AddText(Pairs[I].Value);
+      ValPara := Builder.Build;
+      ValPara.Layout(ValW);
+      ALayout.MetaRows[I].ValuePara := ValPara;
+
+      // A capped key may wrap; re-lay it at the column width so its height counts.
+      ALayout.MetaRows[I].KeyPara.Layout(MaxKeyW);
+      RowH := Max(ALayout.MetaRows[I].KeyPara.Height, ValPara.Height);
+      ALayout.MetaRows[I].Top := Y;
+      ALayout.MetaRows[I].Height := RowH;
+      Y := Y + RowH + TableCellPadV;
+
+      if Flat.Length > 0 then
+        Flat.Append(sLineBreak);
+      Flat.Append(Pairs[I].Key).Append(': ').Append(Pairs[I].Value);
+    end;
+    Y := Y - TableCellPadV;   // drop the gap after the last row
+    ALayout.Height := Y + CodePadding;
+    // Selectable/copyable as reconstructed "key: value" lines.
+    ALayout.PlainText := Flat.ToString;
+  finally
+    Flat.Free;
+  end;
+end;
+
+procedure TRhoMarkdownViewer.PaintFrontMatter(const ACanvas: ISkCanvas;
+  const ALayout: TRhoBlockLayout; const AScreenTop: Single);
+var
+  Paint: ISkPaint;
+  R: TRectF;
+  I: Integer;
+begin
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  Paint.Style := TSkPaintStyle.Fill;
+  Paint.Color := FCodeBackgroundColor;
+  R := RectF(ALayout.BoxLeft, AScreenTop, ALayout.BoxRight,
+    AScreenTop + ALayout.Height);
+  ACanvas.DrawRoundRect(R, 4, 4, Paint);
+
+  for I := 0 to High(ALayout.MetaRows) do
+  begin
+    if ALayout.MetaRows[I].KeyPara <> nil then
+      ALayout.MetaRows[I].KeyPara.Paint(ACanvas,
+        ALayout.BoxLeft + ALayout.MetaKeyLeft,
+        AScreenTop + ALayout.MetaRows[I].Top);
+    if ALayout.MetaRows[I].ValuePara <> nil then
+      ALayout.MetaRows[I].ValuePara.Paint(ACanvas,
+        ALayout.BoxLeft + ALayout.MetaValueLeft,
+        AScreenTop + ALayout.MetaRows[I].Top);
+  end;
+end;
+
 { ---- block layout ---- }
 
 procedure TRhoMarkdownViewer.LayoutBlock(ABlock: TMarkDownBlock;
@@ -1975,6 +2157,12 @@ begin
           CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0,
             ALayout.Links);
         end;
+        Exit;
+      end;
+
+    bkFrontMatter:
+      begin
+        LayoutFrontMatter(ABlock, AContentLeft, AContentWidth, ALayout);
         Exit;
       end;
 
@@ -3195,6 +3383,9 @@ begin
 
     if Length(FLayout[I].Rows) > 0 then
       PaintTable(ACanvas, FLayout[I], ScreenTop);
+
+    if FLayout[I].Block.Kind = bkFrontMatter then
+      PaintFrontMatter(ACanvas, FLayout[I], ScreenTop);
 
     if FLayout[I].Image <> nil then
     begin

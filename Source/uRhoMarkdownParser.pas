@@ -582,6 +582,32 @@ begin
   ParagraphStartLine := -1;
   PrevHardBreak := False;
   I := Max(0, StartLine);
+
+  // YAML front matter: a '---' on the very first line, closed by a later '---'
+  // or '...'. Only a top-level document parse (MapSource) is considered, and
+  // only when it is genuinely the first line - so a '---' elsewhere stays a
+  // thematic rule, and a leading '---' with no closing fence also falls through
+  // to a rule (handled in the loop). Common in skill.md and Jekyll-style docs.
+  if MapSource and (I < Lines.Count) and (Trim(Lines[I]) = '---') then
+  begin
+    ContentCol := I + 1;   // reuse as a scan cursor for the closing fence
+    while (ContentCol < Lines.Count) and (Trim(Lines[ContentCol]) <> '---') and
+      (Trim(Lines[ContentCol]) <> '...') do
+      Inc(ContentCol);
+    if ContentCol < Lines.Count then
+    begin
+      CodeText := '';
+      for Number := I + 1 to ContentCol - 1 do
+      begin
+        if CodeText <> '' then
+          CodeText := CodeText + sLineBreak;
+        CodeText := CodeText + Lines[Number];
+      end;
+      Result.Add(NewBlock(bkFrontMatter, CodeText, I));
+      I := ContentCol + 1;   // past the closing fence
+    end;
+  end;
+
   while I < Lines.Count do
   begin
     if StartsWithFence(Lines[I]) then

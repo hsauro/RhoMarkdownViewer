@@ -48,6 +48,10 @@ type
     [Test]
     procedure ParseBlocksSkipsLinkReferenceDefinitions;
     [Test]
+    procedure ParseBlocksParsesFrontMatter;
+    [Test]
+    procedure ParseBlocksLoneDashesAreRule;
+    [Test]
     procedure ParseBlocksParsesImageBlock;
     [Test]
     procedure ParseBlocksStripsImageTitle;
@@ -603,6 +607,56 @@ begin
     Lines.Add('[ref]: https://example.com');
     Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
     Assert.AreEqual<Integer>(0, Blocks.Count);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksParsesFrontMatter;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('---');
+    Lines.Add('name: delphi-fmx');
+    Lines.Add('description: A specialist');
+    Lines.Add('---');
+    Lines.Add('');
+    Lines.Add('# Body');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    // Front matter is one block holding the inner YAML; the body follows.
+    Assert.AreEqual<Integer>(2, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkFrontMatter);
+    Assert.AreEqual('name: delphi-fmx' + sLineBreak + 'description: A specialist',
+      Blocks[0].Text);
+    Assert.IsTrue(Blocks[1].Kind = bkHeading);
+    Assert.AreEqual('Body', Blocks[1].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksLoneDashesAreRule;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    // A leading '---' with NO closing fence is a thematic rule, not front
+    // matter - front matter must be a closed block.
+    Lines.Add('---');
+    Lines.Add('');
+    Lines.Add('Just a paragraph.');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.IsFalse(Blocks[0].Kind = bkFrontMatter);
+    Assert.IsTrue(Blocks[0].Kind = bkRule);
   finally
     Blocks.Free;
     Lines.Free;

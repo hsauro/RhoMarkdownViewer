@@ -703,6 +703,33 @@ so a selection covering a table *and* its neighbours still yields correct
 verbatim markdown, while a table-only selection falls back to the tab-separated
 plain text — which is the more useful result for a table anyway.
 
+### YAML front matter — the metadata card
+
+A `---` block on the very first line, closed by `---` or `...`, is parsed as
+`bkFrontMatter` (raw inner YAML in `Block.Text`) and rendered as a two-column
+**metadata card** — a tinted panel (`CodeBackgroundColor`, so it themes) with
+bold keys beside wrapping values. Common in `skill.md` / Jekyll docs, which
+otherwise turned the closing `---` into a stray setext heading.
+
+Detection lives at the top of `ParseBlocks`, gated on **`MapSource`** (top-level
+document parse only, never a recursive container call) **and** the first line —
+and it requires a closing fence, so a leading `---` with none falls through and
+stays a thematic rule (`ParseBlocksLoneDashesAreRule` guards this). `ParseBlocks`
+reuses its `ContentCol` / `Number` locals as the scan cursor.
+
+Layout (`LayoutFrontMatter`) parses the YAML shallowly (`ParseFrontMatterPairs`:
+top-level `key: value`, indented/colon-less lines folded into the previous value,
+surrounding quotes stripped — not a YAML engine) and lays it out like a
+borderless two-column table stored in `TRhoBlockLayout.MetaRows`. Paint is
+`PaintFrontMatter` (tinted round-rect + each row's two paragraphs), hooked into
+`PaintDocument` beside `PaintTable`. ⚠️ **The key column needs a pixel of slack**
+(`Ceil(MaxKeyW) + 1`) — laying a key out at its exact intrinsic width makes Skia
+wrap the last glyph, the same float-rounding trap documented for table columns.
+
+`PlainText` is set to reconstructed `key: value` lines, so the card is
+selectable and copies cleanly; no source map (fallback). HTML export emits it as
+`<pre><code>` alongside `bkCodeBlock`.
+
 ### Anchor links
 
 In-page links (`[text](#some-heading)`) scroll to the matching heading.

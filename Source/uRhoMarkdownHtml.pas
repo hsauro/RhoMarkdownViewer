@@ -231,7 +231,7 @@ var
             EmitInline(C.Text, Refs) + '</h' + IntToStr(C.Level) + '>'#10);
         bkParagraph:
           Builder.Append('<p>' + EmitInline(C.Text, Refs) + '</p>'#10);
-        bkCodeBlock:
+        bkCodeBlock, bkFrontMatter:
           Builder.Append('<pre><code>' + HtmlEscape(C.Text) +
             '</code></pre>'#10);
         bkQuote:
@@ -286,7 +286,7 @@ var
             if B.Children <> nil then
               EmitChildBlocks(B.Children);
           end;
-        bkCodeBlock:
+        bkCodeBlock, bkFrontMatter:
           Builder.Append('<pre><code>' + HtmlEscape(B.Text) +
             '</code></pre>'#10);
         bkRule:

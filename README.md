@@ -73,6 +73,7 @@ Supported rendering includes:
 - Inline formatting and links inside table cells
 - Images — **block and true inline**, scaled with alt-text fallback
 - **A whitelist of inline HTML** — formatting tags plus `<img>` with explicit sizing
+- **YAML front matter** rendered as a metadata card (`name:`/`description:` etc., as in `skill.md` and Jekyll-style documents)
 - Clickable markdown links (`OnLinkClick`, or the system browser by default)
 - **In-page anchor links** (`[text](#heading)`) with GitHub-compatible slugs, plus `ScrollToAnchor` for programmatic navigation and tables of contents
 - Highlight spans using double equals (`==highlighted==`)
@@ -229,6 +230,28 @@ renders a README — a root-relative `src="/images/x.png"` resolves against
 
 > **Note:** the HTML whitelist affects on-screen rendering. `AsHtml` export
 > currently escapes these tags rather than passing them through.
+
+### YAML front matter
+
+A YAML front-matter header — a `---` block at the very top of the document,
+closed by `---` or `...` — is rendered as a **metadata card**: a tinted panel with
+each key in bold beside its value. This is what makes `skill.md`, Jekyll, and
+Hugo-style documents display cleanly instead of turning the closing `---` into a
+stray heading.
+
+```markdown
+---
+name: delphi-fmx
+description: "Specialist in FireMonkey (FMX) and Delphi mobile development."
+model: opus
+---
+
+# The document body follows as normal.
+```
+
+Parsing is intentionally shallow — top-level `key: value` pairs, with indented or
+colon-less lines folded into the preceding value and surrounding quotes stripped
+— which covers typical headers without pulling in a full YAML engine.
 
 ---
 
@@ -565,7 +588,6 @@ to visible literal text — nothing is silently dropped.
 | HTML blocks | `<details>`, `<div>`, `<table>` | Only the [inline HTML whitelist](#inline-html-whitelist) is interpreted; block-level HTML renders literally. |
 | Lazy block-quote continuation | a `>` line continued on the next line without `>` | The continuation escapes the quote. Prefix every line with `>`. |
 | Escaped pipes in tables | `\|` inside a cell | Treated as a column separator. |
-| YAML front matter | `---` block at the top of a file | Not recognised or hidden; renders as a heading. |
 
 Also out of scope, being neither CommonMark nor GFM: definition lists, math
 (`$…$`), admonition/alert blocks (`> [!NOTE]`), and custom directives.

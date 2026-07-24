@@ -1,0 +1,200 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<test-results name="D:\Documents\Embarcadero\Studio\Projects\fmx\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="168" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-07-24" time="16:17:31">
+  <culture-info current-culture="en" current-uiculture="en" />
+  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="16:17:31" asserts="0">
+    <results>
+        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.011" asserts="0" >
+          <results>
+              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.011" asserts="0" >
+                <results>
+                    <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.010" >
+                      <results>
+                        <test-case name="TestDelphiKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiMultilineStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiGenerics" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiAnonymousMethods" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestSQLKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestSQLComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestSQLStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestSQLNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRegistry" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCPreprocessor" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCPPKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCSharpKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJavaKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJSKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJSTemplateLiterals" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestTSKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestGoKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRustKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPHPKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPythonKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPythonComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPythonStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPythonTripleQuotedStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPythonNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRubyKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRubyComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRubySymbols" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestHTMLTags" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestHTMLComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCSSProperties" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCSSComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJSONStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJSONNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestJSONLiterals" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestYAMLComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestYAMLLiterals" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestShellKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestShellVariables" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestINISections" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestINIComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestINIKeyValue" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestRegistryAllLanguages" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDfmKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDfmPropertyValues" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDfmCharConstants" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestDelphiSourceFileAliases" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.007" asserts="0" />
+                        <test-case name="TestTokenStreamInvariantsAdversarialInput" executed="True" result="Success" success="True" time="0.003" asserts="0" />
+                        <test-case name="TestLaTeXHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestPowerShellHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestBatchHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestVBHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestAntimonyHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestBlockHighlightTokensMatchRegistry" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestBlockHighlightTokensFallBackToNil" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                      </results>
+                    </test-suite>
+                    <test-suite type="Fixture" name="TMarkdownHtmlTests" executed="True" result="Success" success="True" time="0.000" >
+                      <results>
+                        <test-case name="HeadingEmitsHTag" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParagraphWrapsInP" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="InlineStylesEmitTags" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="LinkEmitsAnchor" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="InlineCodeEmitsCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="EscapesHtmlSpecials" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="BlockquoteEmitsTag" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="BulletListEmitsUl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="OrderedListEmitsOl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="NestedListNestsUl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TaskListEmitsCheckbox" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="CodeBlockEmitsPre" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="RuleEmitsHr" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ImageEmitsImg" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TableEmitsTableWithAlignment" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="DocumentWrapsFragment" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                      </results>
+                    </test-suite>
+                    <test-suite type="Fixture" name="TMarkDownModelTests" executed="True" result="Success" success="True" time="0.000" >
+                      <results>
+                        <test-case name="BlockOwnsInlineTokens" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                      </results>
+                    </test-suite>
+                    <test-suite type="Fixture" name="TMarkDownParserTests" executed="True" result="Success" success="True" time="0.001" >
+                      <results>
+                        <test-case name="ParsesHeading" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParsesNestedOrderedListItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ExtractsCheckedTask" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="RecognizesTableStart" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksJoinsParagraphLines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksGroupsFencedCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksExtractsFenceLanguage" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesIndentedCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksIndentedCodeKeepsInteriorBlank" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksIndentedCodeDoesNotInterruptParagraph" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksIndentedCodeDeclinesAfterListItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksMergesQuoteLines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksNestsQuote" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesListInsideQuote" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksNestsSecondParagraphInItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksNestsCodeBlockInItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksItemContinuationStopsAtNextItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksGroupsTableRows" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksSkipsLinkReferenceDefinitions" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesFrontMatter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksLoneDashesAreRule" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesImageBlock" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksStripsImageTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineStripsImageTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesTaskListItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksHonorsStartLine" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksTreatsHashWithoutSpaceAsParagraph" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksRequiresSeparatorForTable" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksAddsHardBreakForTrailingSpaces" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksAddsHardBreakForTrailingBackslash" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesEmphasisCodeAndStrike" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesBoldItalic" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineNestsEmphasis" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineStylesLinkText" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineIgnoresUnderscoreInsideWords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineIgnoresSpacedAsterisks" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineRespectsEscapes" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineMapsHtmlFormattingTags" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineNestsHtmlTags" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineHtmlBreakTag" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineLeavesUnknownTagLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineLeavesUnclosedTagLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesHtmlImageWithSize" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesInlineLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineStripsLinkTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineResolvesReferenceLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineDetectsAutoLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineEmitsHardLineBreakToken" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineDetectsEmailAutoLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineDecodesHtmlEntities" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineLeavesInvalidEntityLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="IsSetextUnderlineRecognizesUnderlines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesSetextHeadings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksKeepsRuleWithoutParagraph" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineLeavesUnterminatedEmphasisAsText" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineLeavesUnterminatedCodeAsText" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ExtractLinkReferencesCollectsUrls" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="CountLeadingSpacesCountsSpacesAndTabs" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TrimLeftOnlyRemovesLeadingWhitespaceOnly" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="StartsWithFenceRecognizesIndentedFence" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="IsRuleLineAcceptsRulesAndRejectsOthers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="IsPipeTableRowDetectsPipe" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SplitTableRowSplitsCells" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseImageParsesAltAndUrl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseImageRejectsNonImage" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseLinkReferenceParsesNameAndUrl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseLinkReferenceDropsTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseListItemHandlesBulletsAndNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseListItemRejectsPlainText" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapMapsParagraphToSource" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesMultiLineParagraphJoin" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesHardBreakParagraph" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesAtxHeadingOffset" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesMarkupAndEntities" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesQuoteAcrossLines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesIndentedHeading" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapLocatesBoldSpan" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapHandlesEntity" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapHandlesAutoLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesListItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesImageAlt" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesCodeBlock" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="SourceMapHandlesTable" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesEmojiShortcodes" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapHandlesEmoji" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesHighlight" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapHandlesHighlight" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesSubSuper" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TokenMapHandlesSubSuper" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                      </results>
+                    </test-suite>
+                </results>
+              </test-suite>
+          </results>
+        </test-suite>
+    </results>
+  </test-suite>
+</test-results>
