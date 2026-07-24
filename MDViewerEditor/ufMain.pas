@@ -21,6 +21,10 @@ type
     btnUpdate: TButton;
     btnNew: TButton;
     Label1: TLabel;
+    btnSave: TButton;
+    Layout3: TLayout;
+    Layout4: TLayout;
+    lblFileName: TLabel;
     procedure btnOpenClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure cboComboChange(Sender: TObject);
@@ -32,6 +36,7 @@ type
     procedure btnNewClick(Sender: TObject);
     procedure btnThemeClick(Sender: TObject);
     procedure btnUpdateClick(Sender: TObject);
+    procedure btnSaveClick(Sender: TObject);
   private
     { Private declarations }
     // Guards against the two scroll handlers driving each other in a loop:
@@ -39,7 +44,8 @@ type
     // otherwise fire straight back into the viewer.
     FSyncing: Boolean;
     FDark : Boolean;
-    function SelectMDFile : string;
+    function SelectMDFileForOpening : string;
+    function SelectMDFileForSaving : string;
     // Proportional two-way scroll sync between the editor (Memo1) and the
     // preview (RhoMarkdownViewer1). Positions map by fraction-of-scrollable
     // range, since the two have unrelated content heights.
@@ -89,13 +95,24 @@ end;
 procedure TfrmMain.btnOpenClick(Sender: TObject);
 var FileName: string;
 begin
-  FileName := SelectMDFile;
+  FileName := SelectMDFileForOpening;
   if FileName = '' then
     Exit;
   // LoadFromFile sets BasePath to the file's folder BEFORE parsing, so relative
   // image paths in the document resolve. Assigning MarkdownText does not.
   FViewer.LoadFromFile(FileName);
   TextMemo.Text := FViewer.MarkdownText;
+  lblFileName.Text := ExtractFileName(FileName);
+end;
+
+procedure TfrmMain.btnSaveClick(Sender: TObject);
+var FileName: string;
+begin
+  FileName := SelectMDFileForSaving;
+  if FileName = '' then
+      Exit;
+  lblFileName.Text := ExtractFileName (FileName);
+  TFile.WriteAllText(FileName, TextMemo.Text);
 end;
 
 procedure TfrmMain.btnThemeClick(Sender: TObject);
@@ -143,6 +160,7 @@ begin
   FViewer.AllowTaskToggle := True;
   FViewer.OnTaskToggle := ViewerTaskToggle;
 
+  lblFileName.Text := '(untitled)';
   FDark := False;
 end;
 
@@ -214,7 +232,7 @@ begin
 end;
 
 
-function TfrmMain.SelectMDFile : string;
+function TfrmMain.SelectMDFileForOpening : string;
 var
   OpenDialog: TOpenDialog;
 begin
@@ -240,6 +258,32 @@ begin
   end;
 end;
 
+
+function TfrmMain.SelectMDFileForSaving : string;
+var
+  SaveDialog: TSaveDialog;
+begin
+  // Create the OpenDialog component on the fly
+  SaveDialog := TSaveDialog.Create(nil);
+  try
+    // Configure dialog properties
+    SaveDialog.Title := 'Select a Markdown (.md) File';
+    SaveDialog.Filter := 'Markdown Files (*.md)|*.md|All Files (*.*)|*.*';
+    SaveDialog.InitialDir := GetCurrentDir; // Starts in the current directory
+    SaveDialog.FilterIndex := 1;
+    SaveDialog.Options := [TOpenOption.ofFileMustExist];
+
+    Result := '';
+    // Show the dialog
+    if SaveDialog.Execute then
+    begin
+      Result := SaveDialog.FileName;
+    end;
+  finally
+    // Free the memory to prevent memory leaks
+    SaveDialog.Free;
+  end;
+end;
 
 procedure TfrmMain.FViewerDragDrop(Sender: TObject;
   const Data: TDragObject; const Point: TPointF);

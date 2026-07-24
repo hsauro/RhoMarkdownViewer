@@ -19,7 +19,7 @@ object frmMain: TfrmMain
     object btnOpen: TButton
       Position.X = 118.000000000000000000
       Position.Y = 11.000000000000000000
-      TabOrder = 1
+      TabOrder = 2
       Text = 'Open'
       OnClick = btnOpenClick
     end
@@ -30,20 +30,20 @@ object frmMain: TfrmMain
       Size.Width = 193.000000000000000000
       Size.Height = 22.000000000000000000
       Size.PlatformDefault = False
-      TabOrder = 3
+      TabOrder = 4
       OnChange = cboComboChange
     end
     object btnTheme: TButton
-      Position.X = 297.000000000000000000
+      Position.X = 428.000000000000000000
       Position.Y = 12.000000000000000000
-      TabOrder = 4
+      TabOrder = 5
       Text = 'Theme: Light'
       OnClick = btnThemeClick
     end
     object btnUpdate: TButton
-      Position.X = 206.000000000000000000
+      Position.X = 337.000000000000000000
       Position.Y = 11.000000000000000000
-      TabOrder = 2
+      TabOrder = 3
       Text = 'Update View'
       OnClick = btnUpdateClick
     end
@@ -61,14 +61,21 @@ object frmMain: TfrmMain
       Size.Height = 18.000000000000000000
       Size.PlatformDefault = False
       Text = 'Examples:'
-      TabOrder = 5
+      TabOrder = 6
+    end
+    object btnSave: TButton
+      Position.X = 214.000000000000000000
+      Position.Y = 11.000000000000000000
+      TabOrder = 1
+      Text = 'Save'
+      OnClick = btnSaveClick
     end
   end
   object Layout2: TLayout
     Align = Left
     Position.Y = 44.000000000000000000
     Size.Width = 561.000000000000000000
-    Size.Height = 802.000000000000000000
+    Size.Height = 776.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 2
     object TextMemo: TMemo
@@ -78,11 +85,11 @@ object frmMain: TfrmMain
       TextSettings.Font.Size = 16.000000000000000000
       Align = Client
       Size.Width = 561.000000000000000000
-      Size.Height = 802.000000000000000000
+      Size.Height = 776.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 0
       Viewport.Width = 557.000000000000000000
-      Viewport.Height = 798.000000000000000000
+      Viewport.Height = 772.000000000000000000
     end
   end
   object Splitter1: TSplitter
@@ -92,7 +99,7 @@ object frmMain: TfrmMain
     Position.X = 561.000000000000000000
     Position.Y = 44.000000000000000000
     Size.Width = 10.000000000000000000
-    Size.Height = 802.000000000000000000
+    Size.Height = 776.000000000000000000
     Size.PlatformDefault = False
   end
   object FViewer: TRhoMarkdownViewer
@@ -119,10 +126,32 @@ object frmMain: TfrmMain
     ContentPadding = 12.000000000000000000
     Align = Client
     Size.Width = 685.000000000000000000
-    Size.Height = 802.000000000000000000
+    Size.Height = 776.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 4
     OnDragOver = FViewerDragOver
     OnDragDrop = FViewerDragDrop
+  end
+  object Layout3: TLayout
+    Position.X = 600.000000000000000000
+    Position.Y = 400.000000000000000000
+    TabOrder = 6
+  end
+  object Layout4: TLayout
+    Align = Bottom
+    Position.Y = 820.000000000000000000
+    Size.Width = 1256.000000000000000000
+    Size.Height = 26.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 7
+    object lblFileName: TLabel
+      Position.X = 16.000000000000000000
+      Position.Y = 4.000000000000000000
+      Size.Width = 529.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'lblFileName'
+      TabOrder = 0
+    end
   end
 end
