@@ -1,0 +1,56 @@
+package RhoMarkdownViewer;
+
+{$R *.res}
+
+// Runtime package for TRhoMarkdownViewer.
+//
+// The .res include above is required. It was omitted at first so a dcc build
+// would work from a clean checkout, but the IDE generates the .res as soon as
+// the .dproj exists, and every installed package on this machine has one.
+// (Do not write that directive inside a brace comment - brace comments do not
+// nest, so its closing brace ends the comment early.)
+//
+// Register lives in the design-time package (dclRhoMarkdownViewer), so an
+// application can link this one without dragging in designide.
+
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  fmx,
+  Skia.Package.RTL,
+  Skia.Package.FMX;
+
+contains
+  uRhoMarkdownTypes in '..\Source\uRhoMarkdownTypes.pas',
+  uRhoMarkdownHighlight in '..\Source\uRhoMarkdownHighlight.pas',
+  uRhoMarkdownParser in '..\Source\uRhoMarkdownParser.pas',
+  uRhoMarkdownHtml in '..\Source\uRhoMarkdownHtml.pas',
+  uRhoMarkdownViewer in '..\Source\uRhoMarkdownViewer.pas';
+
+end.

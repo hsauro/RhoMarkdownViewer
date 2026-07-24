@@ -1,0 +1,127 @@
+object frmMain: TfrmMain
+  Left = 0
+  Top = 0
+  Caption = 'markdown View/Editor'
+  ClientHeight = 846
+  ClientWidth = 1256
+  Position = MainFormCenter
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  DesignerMasterStyle = 0
+  object Layout1: TLayout
+    Align = Top
+    Size.Width = 1256.000000000000000000
+    Size.Height = 44.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    object btnOpen: TButton
+      Position.X = 118.000000000000000000
+      Position.Y = 11.000000000000000000
+      TabOrder = 1
+      Text = 'Open'
+      OnClick = btnOpenClick
+    end
+    object cboCombo: TComboBox
+      Anchors = [akTop, akRight]
+      Position.X = 1041.000000000000000000
+      Position.Y = 11.000000000000000000
+      Size.Width = 193.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 3
+      OnChange = cboComboChange
+    end
+    object btnTheme: TButton
+      Position.X = 297.000000000000000000
+      Position.Y = 12.000000000000000000
+      TabOrder = 4
+      Text = 'Theme: Light'
+      OnClick = btnThemeClick
+    end
+    object Button1: TButton
+      Position.X = 206.000000000000000000
+      Position.Y = 11.000000000000000000
+      TabOrder = 2
+      Text = 'View'
+    end
+    object btnNew: TButton
+      Position.X = 8.000000000000000000
+      Position.Y = 12.000000000000000000
+      TabOrder = 0
+      Text = 'New'
+      OnClick = btnNewClick
+    end
+    object Label1: TLabel
+      Position.X = 977.000000000000000000
+      Position.Y = 12.000000000000000000
+      Size.Width = 56.000000000000000000
+      Size.Height = 18.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Examples:'
+      TabOrder = 5
+    end
+  end
+  object Layout2: TLayout
+    Align = Left
+    Position.Y = 44.000000000000000000
+    Size.Width = 561.000000000000000000
+    Size.Height = 802.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    object TextMemo: TMemo
+      Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+      DataDetectorTypes = []
+      StyledSettings = [Family, Style, FontColor]
+      TextSettings.Font.Size = 16.000000000000000000
+      Align = Client
+      Size.Width = 561.000000000000000000
+      Size.Height = 802.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      Viewport.Width = 557.000000000000000000
+      Viewport.Height = 798.000000000000000000
+    end
+  end
+  object Splitter1: TSplitter
+    Align = Left
+    Cursor = crHSplit
+    MinSize = 20.000000000000000000
+    Position.X = 561.000000000000000000
+    Position.Y = 44.000000000000000000
+    Size.Width = 10.000000000000000000
+    Size.Height = 802.000000000000000000
+    Size.PlatformDefault = False
+  end
+  object FViewer: TRhoMarkdownViewer
+    BackgroundColor = claWhite
+    TextColor = claBlack
+    LinkColor = xFF0366D6
+    CodeBackgroundColor = xFFF4F4F4
+    QuoteBarColor = xFFD0D7DE
+    RuleColor = xFFD0D7DE
+    HeadingRuleColor = xFFD0D7DE
+    HighlightColor = xFFFFF3A3
+    SelectionColor = x60318CE7
+    SyntaxColors.PlainColor = claNull
+    SyntaxColors.KeywordColor = claBlue
+    SyntaxColors.CommentColor = claGreen
+    SyntaxColors.StringColor = xFFA31515
+    SyntaxColors.NumberColor = xFF098658
+    SyntaxColors.TypeColor = xFF2B91AF
+    SyntaxColors.PreprocessorColor = claGray
+    SyntaxColors.SymbolColor = xFF505050
+    FontFamily = 'Segoe UI'
+    CodeFontFamily = 'Consolas'
+    FontSize = 14.000000000000000000
+    ContentPadding = 12.000000000000000000
+    Align = Client
+    Size.Width = 685.000000000000000000
+    Size.Height = 802.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 4
+    OnDragOver = FViewerDragOver
+    OnDragDrop = FViewerDragDrop
+  end
+end

@@ -1,0 +1,28 @@
+object frmDT: TfrmDT
+  Left = 0
+  Top = 0
+  Caption = 'Design Stream Test'
+  ClientHeight = 500
+  ClientWidth = 700
+  Position = MainFormCenter
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  DesignerMasterStyle = 0
+  object Viewer: TRhoMarkdownViewer
+    Align = Client
+    Size.Width = 700.000000000000000000
+    Size.Height = 500.000000000000000000
+    Size.PlatformDefault = False
+    FontSize = 15.000000000000000000
+    Markdown.Strings = (
+      '# Streamed from the .fmx'
+      ''
+      'This text was **not** set in code. It arrived through form '
+      'streaming, which is the path a component dropped on a form at '
+      'design time takes.'
+      ''
+      '- List item one'
+      '- List item two')
+  end
+end

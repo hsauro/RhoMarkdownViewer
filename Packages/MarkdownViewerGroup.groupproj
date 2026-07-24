@@ -1,0 +1,60 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{703D6B53-6587-4EC4-87BC-4C84B8546492}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="RhoMarkdownViewer.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclRhoMarkdownViewer.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\MDViewerEditor\MarkDownViewerEditorProject.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="RhoMarkdownViewer">
+        <MSBuild Projects="RhoMarkdownViewer.dproj"/>
+    </Target>
+    <Target Name="RhoMarkdownViewer:Clean">
+        <MSBuild Projects="RhoMarkdownViewer.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="RhoMarkdownViewer:Make">
+        <MSBuild Projects="RhoMarkdownViewer.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclRhoMarkdownViewer">
+        <MSBuild Projects="dclRhoMarkdownViewer.dproj"/>
+    </Target>
+    <Target Name="dclRhoMarkdownViewer:Clean">
+        <MSBuild Projects="dclRhoMarkdownViewer.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclRhoMarkdownViewer:Make">
+        <MSBuild Projects="dclRhoMarkdownViewer.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="MarkDownViewerEditorProject">
+        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj"/>
+    </Target>
+    <Target Name="MarkDownViewerEditorProject:Clean">
+        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="MarkDownViewerEditorProject:Make">
+        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="RhoMarkdownViewer;dclRhoMarkdownViewer;MarkDownViewerEditorProject"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="RhoMarkdownViewer:Clean;dclRhoMarkdownViewer:Clean;MarkDownViewerEditorProject:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="RhoMarkdownViewer:Make;dclRhoMarkdownViewer:Make;MarkDownViewerEditorProject:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
