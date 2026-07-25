@@ -70,8 +70,17 @@ object frmMain: TfrmMain
       Text = 'Save'
       OnClick = btnSaveClick
     end
+    object btnOpenClosePanel: TSpeedButton
+      Position.X = 576.000000000000000000
+      Position.Y = 11.000000000000000000
+      Size.Width = 129.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Open/Close Text Panel'
+      OnClick = btnOpenClosePanelClick
+    end
   end
-  object Layout2: TLayout
+  object TextLayoutPanel: TLayout
     Align = Left
     Position.Y = 44.000000000000000000
     Size.Width = 561.000000000000000000
@@ -92,7 +101,7 @@ object frmMain: TfrmMain
       Viewport.Height = 772.000000000000000000
     end
   end
-  object Splitter1: TSplitter
+  object PanelSplitter: TSplitter
     Align = Left
     Cursor = crHSplit
     MinSize = 20.000000000000000000
@@ -145,7 +154,7 @@ object frmMain: TfrmMain
     Size.PlatformDefault = False
     TabOrder = 7
     object lblFileName: TLabel
-      Position.X = 16.000000000000000000
+      Position.X = 8.000000000000000000
       Position.Y = 4.000000000000000000
       Size.Width = 529.000000000000000000
       Size.Height = 17.000000000000000000

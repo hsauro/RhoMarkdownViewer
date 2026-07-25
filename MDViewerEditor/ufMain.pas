@@ -11,8 +11,8 @@ uses
 type
   TfrmMain = class(TForm)
     Layout1: TLayout;
-    Layout2: TLayout;
-    Splitter1: TSplitter;
+    TextLayoutPanel: TLayout;
+    PanelSplitter: TSplitter;
     FViewer: TRhoMarkdownViewer;
     TextMemo: TMemo;
     btnOpen: TButton;
@@ -25,6 +25,7 @@ type
     Layout3: TLayout;
     Layout4: TLayout;
     lblFileName: TLabel;
+    btnOpenClosePanel: TSpeedButton;
     procedure btnOpenClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure cboComboChange(Sender: TObject);
@@ -37,6 +38,7 @@ type
     procedure btnThemeClick(Sender: TObject);
     procedure btnUpdateClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
+    procedure btnOpenClosePanelClick(Sender: TObject);
   private
     { Private declarations }
     // Guards against the two scroll handlers driving each other in a loop:
@@ -103,6 +105,20 @@ begin
   FViewer.LoadFromFile(FileName);
   TextMemo.Text := FViewer.MarkdownText;
   lblFileName.Text := ExtractFileName(FileName);
+end;
+
+procedure TfrmMain.btnOpenClosePanelClick(Sender: TObject);
+begin
+  if TextLayoutPanel.Visible then
+     begin
+     TextLayoutPanel.Visible := False;
+     PanelSplitter.Visible := False;
+     end
+  else
+    begin
+    TextLayoutPanel.Visible := True;
+     PanelSplitter.Visible := True;
+    end;
 end;
 
 procedure TfrmMain.btnSaveClick(Sender: TObject);
