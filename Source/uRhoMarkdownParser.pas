@@ -29,7 +29,22 @@ type
     class function ParseInline(const Text: string;
       References: TStrings = nil;
       const SourceMap: TArray<Integer> = nil): TMarkDownInlineList; static;
+    // True for a line that OPENS a fenced code block. Note this is not the test
+    // for the closing fence - see IsClosingFence, which needs the opening
+    // fence's character and length to decide.
     class function StartsWithFence(const S: string): Boolean; static;
+    // Decomposes a fence line into its character ('`' or '~'), the length of
+    // the run, and whatever follows it. False when the line is not a fence
+    // (fewer than three, or a different character).
+    class function FenceRun(const S: string; out AChar: Char;
+      out ALen: Integer; out ARest: string): Boolean; static;
+    // A fence closes a block only if it uses the SAME character, is at least as
+    // long as the opening fence, and has nothing but whitespace after it. That
+    // length rule is what lets a ````-fenced block contain ``` verbatim - the
+    // standard way to show fenced markdown, or code in a language that uses ```
+    // itself (Antimony / Python triple-quoted strings).
+    class function IsClosingFence(const S: string; const AChar: Char;
+      const ALen: Integer): Boolean; static;
     class function ExtractFenceLanguage(const S: string): string; static;
     class procedure SplitTableRow(const Line: string; Cells: TStrings); static;
     class function TrimLeftOnly(const S: string): string; static;
@@ -70,9 +85,49 @@ begin
   Result := Copy(S, I, MaxInt);
 end;
 
-class function TMarkDownBlockParser.StartsWithFence(const S: string): Boolean;
+class function TMarkDownBlockParser.FenceRun(const S: string; out AChar: Char;
+  out ALen: Integer; out ARest: string): Boolean;
+var
+  T: string;
+  I: Integer;
 begin
-  Result := Copy(TrimLeftOnly(S), 1, 3) = '```';
+  AChar := #0;
+  ALen := 0;
+  ARest := '';
+  T := TrimLeftOnly(S);
+  if (T = '') or not CharInSet(T[1], ['`', '~']) then
+    Exit(False);
+  AChar := T[1];
+  I := 1;
+  while (I <= Length(T)) and (T[I] = AChar) do
+    Inc(I);
+  ALen := I - 1;
+  ARest := Copy(T, I, MaxInt);
+  Result := ALen >= 3;
+end;
+
+class function TMarkDownBlockParser.StartsWithFence(const S: string): Boolean;
+var
+  C: Char;
+  L: Integer;
+  Rest: string;
+begin
+  Result := FenceRun(S, C, L, Rest);
+  // A backtick fence's info string may not contain a backtick, or a line of
+  // inline code such as ``` `a` ``` would read as an opening fence.
+  if Result and (C = '`') and (Pos('`', Rest) > 0) then
+    Result := False;
+end;
+
+class function TMarkDownBlockParser.IsClosingFence(const S: string;
+  const AChar: Char; const ALen: Integer): Boolean;
+var
+  C: Char;
+  L: Integer;
+  Rest: string;
+begin
+  Result := FenceRun(S, C, L, Rest) and (C = AChar) and (L >= ALen) and
+    (Trim(Rest) = '');
 end;
 
 class function TMarkDownBlockParser.StripQuoteMarker(const Line: string): string;
@@ -99,20 +154,20 @@ end;
 
 class function TMarkDownBlockParser.ExtractFenceLanguage(const S: string): string;
 var
+  C: Char;
+  L, I: Integer;
   T: string;
-  I: Integer;
 begin
-  T := Trim(S);
-  if (Length(T) >= 3) and (Copy(T, 1, 3) = '```') then
-  begin
-    T := Trim(Copy(T, 4, MaxInt));
-    I := 1;
-    while (I <= Length(T)) and not CharInSet(T[I], [' ', #9, #13, #10]) do
-      Inc(I);
-    Result := Copy(T, 1, I - 1);
-  end
-  else
-    Result := '';
+  Result := '';
+  if not FenceRun(S, C, L, T) then
+    Exit;
+  // The info string is whatever follows the run, however long that run is -
+  // ````antimony must yield 'antimony' just as ```antimony does.
+  T := Trim(T);
+  I := 1;
+  while (I <= Length(T)) and not CharInSet(T[I], [' ', #9, #13, #10]) do
+    Inc(I);
+  Result := Copy(T, 1, I - 1);
 end;
 
 class function TMarkDownBlockParser.IsRuleLine(const S: string): Boolean;
@@ -489,6 +544,9 @@ var
   TaskChecked: Boolean;
   BlockStartLine: Integer;
   Block: TMarkDownBlock;
+  FenceChar: Char;
+  FenceLen: Integer;
+  FenceRest: string;
 
   procedure CommitParagraph;
   begin
@@ -614,9 +672,15 @@ begin
     begin
       CommitParagraph;
       BlockStartLine := I;
+      // Remember the opening fence's character and length: only a fence of the
+      // same character and at least that length closes the block. Without this
+      // a ````-fenced block ends at its first inner ```, which is exactly what
+      // breaks code containing triple backticks.
+      FenceRun(Lines[I], FenceChar, FenceLen, FenceRest);
       Inc(I);
       CodeText := '';
-      while (I < Lines.Count) and not StartsWithFence(Lines[I]) do
+      while (I < Lines.Count) and
+            not IsClosingFence(Lines[I], FenceChar, FenceLen) do
       begin
         if CodeText <> '' then
           CodeText := CodeText + sLineBreak;
@@ -879,14 +943,24 @@ var
     PrevLineIdx: Integer;
     Text: string;
     First: Boolean;
+    FenceChar: Char;
+    FenceLen: Integer;
+    FenceRest: string;
   begin
     LineIdx := ABlock.SourceStartLine + StartOffset;
     PrevLineIdx := LineIdx;
     First := True;
     Text := '';
+    // Stop only at a fence that actually closes THIS block. Testing for any
+    // fence would end the map at the first inner ``` of a ````-fenced block,
+    // silently truncating its source map and skewing verbatim copy.
+    if StopAtFence and
+       not FenceRun(Lines[ABlock.SourceStartLine], FenceChar, FenceLen,
+         FenceRest) then
+      StopAtFence := False;
     while LineIdx < Lines.Count do
     begin
-      if StopAtFence and StartsWithFence(Lines[LineIdx]) then
+      if StopAtFence and IsClosingFence(Lines[LineIdx], FenceChar, FenceLen) then
         Break;
       if not First then
       begin

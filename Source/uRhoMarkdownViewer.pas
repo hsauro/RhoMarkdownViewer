@@ -102,6 +102,15 @@ type
     ValuePara: ISkParagraph;
     Top: Single;
     Height: Single;
+    // Where each paragraph's text sits inside the block's flattened PlainText,
+    // exactly as TRhoTableCell does it - this is what lets selection and search
+    // highlight a card row instead of silently drawing nothing. The ': '
+    // separator between them belongs to neither and so never highlights, the
+    // same way a table's TAB separators do not.
+    KeyStart: Integer;
+    KeyLen: Integer;
+    ValueStart: Integer;
+    ValueLen: Integer;
   end;
 
   // One laid-out block. This is the display list: hit-testing, link rects, and
@@ -219,6 +228,16 @@ type
     Offset: Integer;
   end;
 
+  // One search hit. Matching is deliberately WITHIN a block - a match never
+  // spans a block boundary - so a hit is (block, start, length) rather than a
+  // pair of TRhoDocPos. Start is an offset into FLayout[Block].PlainText, the
+  // same 0-based UTF-16 unit TRhoDocPos uses.
+  TRhoSearchMatch = record
+    Block: Integer;      // index into FLayout
+    Start: Integer;
+    Len: Integer;
+  end;
+
   TRhoMarkdownViewer = class(TControl)
   private
     FContent: TSkPaintBox;
@@ -284,6 +303,21 @@ type
     FAutoScrollStep: Single;
     FDragX: Single;
     FDragY: Single;
+    // Find. FSearchMatches is derived from FLayout, so it is dropped whenever
+    // the layout is (InvalidateLayout) and rebuilt lazily by
+    // EnsureSearchMatches - FSearchValid is what tracks that. FSearchIndex is
+    // the current match (-1 for none) and deliberately SURVIVES a re-layout:
+    // PlainText does not depend on the width, so the same match list comes
+    // back after a resize and the reader keeps their place.
+    FSearchText: string;
+    FSearchCaseSensitive: Boolean;
+    FSearchWholeWords: Boolean;
+    FSearchHighlightColor: TAlphaColor;
+    FSearchCurrentColor: TAlphaColor;
+    FSearchMatches: TArray<TRhoSearchMatch>;
+    FSearchIndex: Integer;
+    FSearchValid: Boolean;
+    FOnSearchChange: TNotifyEvent;
     // Decoded images, keyed on resolved absolute path. A key present with a nil
     // value is a remembered failure, so a broken path is not retried on every
     // re-layout.
@@ -352,10 +386,39 @@ type
     function PosAt(const AX, AY: Single): TRhoDocPos;
     function SelectionRange(out AFrom, ATo: TRhoDocPos): Boolean;
     procedure PaintSelection(const ACanvas: ISkCanvas;
-      const ALayout: TRhoBlockLayout; const AIndex: Integer;
-      const AScreenTop: Single);
+      const AIndex: Integer; const AScrollY: Single);
     function SourceOffsetAt(const APos: TRhoDocPos;
       const AForward: Boolean): Integer;
+
+    procedure SetSearchText(const AValue: string);
+    procedure SetSearchCaseSensitive(const AValue: Boolean);
+    procedure SetSearchWholeWords(const AValue: Boolean);
+    procedure SetSearchHighlightColor(const AValue: TAlphaColor);
+    procedure SetSearchCurrentColor(const AValue: TAlphaColor);
+    function GetSearchMatchCount: Integer;
+    // Drops the match list without touching FSearchIndex. Called from
+    // InvalidateLayout, because a match indexes into FLayout.
+    procedure InvalidateSearchMatches;
+    // Scans FLayout for FSearchText. Assumes a valid layout; go through
+    // EnsureSearchMatches rather than calling this directly.
+    procedure RebuildSearchMatches;
+    procedure EnsureSearchMatches;
+    // Advances to the next/previous match, wrapping. With no current match it
+    // starts from the viewport rather than the top of the document.
+    function StepSearch(const AForward: Boolean): Boolean;
+    // Rects covering [AStart, AEnd) of a block's rendered text, in CONTENT
+    // coordinates (X absolute, Y from the document top). Several rects when the
+    // range wraps a line or spans table cells / front-matter rows.
+    //
+    // The ONE place a character range becomes geometry: selection and search
+    // both go through it, so a block kind that highlights for one highlights
+    // for the other. Add a multi-paragraph block kind here and both work.
+    procedure CollectRangeRects(const ABlock, AStart, AEnd: Integer;
+      var ARects: TArray<TRectF>);
+    procedure ScrollMatchIntoView(const AMatch: TRhoSearchMatch);
+    procedure PaintSearchMatches(const ACanvas: ISkCanvas;
+      const AIndex: Integer; const AScrollY: Single);
+    procedure DoSearchChange;
     function TableOffsetAt(const ALayout: TRhoBlockLayout;
       const AX, AContentY: Single): Integer;
     procedure UpdateAutoScroll(const AY: Single);
@@ -382,12 +445,19 @@ type
     // Lays out a YAML front-matter block as a two-column key/value card.
     procedure LayoutFrontMatter(ABlock: TMarkDownBlock; const AContentLeft,
       AContentWidth: Single; var ALayout: TRhoBlockLayout);
-    procedure PaintFrontMatter(const ACanvas: ISkCanvas;
+    // Chrome and text are separate passes for tables and front-matter cards
+    // alike, because the selection / search highlight layer paints BETWEEN
+    // them. Merge them again and an opaque highlight hides the text.
+    procedure PaintFrontMatterPanel(const ACanvas: ISkCanvas;
+      const ALayout: TRhoBlockLayout; const AScreenTop: Single);
+    procedure PaintFrontMatterText(const ACanvas: ISkCanvas;
       const ALayout: TRhoBlockLayout; const AScreenTop: Single);
     function ResolveImagePath(const AUrl: string): string;
     function ImageFor(const AUrl: string): ISkImage;
     procedure SetBasePath(const AValue: string);
-    procedure PaintTable(const ACanvas: ISkCanvas;
+    procedure PaintTableChrome(const ACanvas: ISkCanvas;
+      const ALayout: TRhoBlockLayout; const AScreenTop: Single);
+    procedure PaintTableText(const ACanvas: ISkCanvas;
       const ALayout: TRhoBlockLayout; const AScreenTop: Single);
     function BuildCode(ABlock: TMarkDownBlock;
       const AWidth: Single): ISkParagraph;
@@ -491,6 +561,38 @@ type
     // rendered plain text.
     function SelectedText(APlainText: Boolean = False): string;
     procedure CopySelection(APlainText: Boolean = False);
+
+    // ---- find ----
+    //
+    // The component owns the MECHANISM only: matching against the rendered
+    // text, highlighting, and scrolling a match into view - none of which a
+    // host can reach, since they need the display list and the paint pass. The
+    // find bar itself (edit box, Ctrl+F, up/down buttons, match counter) is the
+    // host's, so it can style it to fit its own UI.
+    //
+    // Typical wiring: assign SearchText as the user types (highlights appear
+    // immediately; nothing scrolls), then call FindNext from the Enter key or
+    // the down button. F3 / Shift+F3 are handled here already.
+    //
+    // Matching is WITHIN a block: a phrase spanning a paragraph break is not
+    // found. Blocks that render no text (rules, images) never match, and a
+    // front-matter card highlights nothing because its rows are separate
+    // paragraphs - FindNext still scrolls to it.
+
+    // Moves to the next/previous match, wrapping at the ends, and scrolls it
+    // into view. Returns False only when there are no matches at all. With no
+    // current match, FindNext starts at the first match at or below the top of
+    // the viewport - what the reader is looking at, not the top of the file.
+    function FindNext: Boolean;
+    function FindPrevious: Boolean;
+    // Clears SearchText and every highlight.
+    procedure ClearSearch;
+    // Number of matches in the document, 0 when SearchText is ''. Reading it
+    // lays the document out if that has not happened yet.
+    property SearchMatchCount: Integer read GetSearchMatchCount;
+    // 0-based index of the current match, or -1 when none is current (before
+    // the first FindNext, or after SearchText changes).
+    property SearchMatchIndex: Integer read FSearchIndex;
   published
     // Fired when a link is clicked. With no handler assigned the Url is opened
     // in the system browser.
@@ -507,7 +609,22 @@ type
     // when AllowTaskToggle is on.
     property OnTaskToggle: TRhoTaskToggleEvent read FOnTaskToggle
       write FOnTaskToggle;
+    // Fires whenever the search state changes - the text, the options, or the
+    // current match. Use it to update a match counter; read SearchMatchCount
+    // and SearchMatchIndex from the handler. Never fired from the paint pass.
+    property OnSearchChange: TNotifyEvent read FOnSearchChange
+      write FOnSearchChange;
     property Markdown: TStrings read FMarkdown write SetMarkdown;
+
+    // What to find. Setting it re-highlights but does NOT scroll; call
+    // FindNext for that. Set it to '' to clear the highlights.
+    property SearchText: string read FSearchText write SetSearchText;
+    property SearchCaseSensitive: Boolean read FSearchCaseSensitive
+      write SetSearchCaseSensitive default False;
+    // When True, a match must be delimited by non-word characters. "Word" is
+    // letters, digits and underscore, Unicode-aware.
+    property SearchWholeWords: Boolean read FSearchWholeWords
+      write SetSearchWholeWords default False;
 
     // TAlphaColor properties take no `default` - the constants exceed MaxInt.
     property BackgroundColor: TAlphaColor read FBackgroundColor
@@ -530,6 +647,13 @@ type
       write SetHighlightColor;
     property SelectionColor: TAlphaColor read FSelectionColor
       write SetSelectionColor;
+    // Every search match gets SearchHighlightColor; the current one gets
+    // SearchCurrentMatchColor instead, so it stands out from its neighbours.
+    // TAlphaColors.Null on either suppresses that highlight.
+    property SearchHighlightColor: TAlphaColor read FSearchHighlightColor
+      write SetSearchHighlightColor;
+    property SearchCurrentMatchColor: TAlphaColor read FSearchCurrentColor
+      write SetSearchCurrentColor;
     // Floating "Copy" button shown when the pointer is over a fenced code
     // block. Set False for a completely static preview.
     property ShowCodeCopyButton: Boolean read FShowCodeCopyButton
@@ -833,6 +957,7 @@ begin
   FPressedTask := -1;
   FSelAnchor.Block := -1;
   FSelCaret.Block := -1;
+  FSearchIndex := -1;
 
   // Created before ApplyTheme, which retunes it. OnChange is hooked up after
   // the initial theme so construction does not trigger a pointless re-layout.
@@ -1288,6 +1413,10 @@ begin
     FHeadingRuleColor := FRuleColor;
     FHighlightColor := $FF6B5D1B;
     FSelectionColor := $70417FBF;
+    // Distinct from FHighlightColor, or a search hit inside a ==mark== span
+    // would be invisible.
+    FSearchHighlightColor := $80C77F00;
+    FSearchCurrentColor := $FFC77F00;
   end
   else
   begin
@@ -1300,6 +1429,8 @@ begin
     FHeadingRuleColor := FRuleColor;
     FHighlightColor := $FFFFF3A3;
     FSelectionColor := $60318CE7;
+    FSearchHighlightColor := $80FFB300;
+    FSearchCurrentColor := $FFFF9800;
   end;
   // Retunes the code palette too, so one call themes the whole control.
   FSyntaxColors.ApplyTheme(ATheme);   // fires OnChange -> InvalidateLayout
@@ -1845,7 +1976,10 @@ begin
   end;
 end;
 
-procedure TRhoMarkdownViewer.PaintTable(const ACanvas: ISkCanvas;
+// Chrome and text are separate passes because the selection and search
+// highlights go BETWEEN them. Painting a table in one pass put the cell text
+// under the highlight, which an opaque current-match colour then hid.
+procedure TRhoMarkdownViewer.PaintTableChrome(const ACanvas: ISkCanvas;
   const ALayout: TRhoBlockLayout; const AScreenTop: Single);
 var
   Paint: ISkPaint;
@@ -1873,11 +2007,24 @@ begin
       Paint.StrokeWidth := 1;
       Paint.Color := FRuleColor;
       ACanvas.DrawRect(Cell, Paint);
+    end;
+end;
 
+procedure TRhoMarkdownViewer.PaintTableText(const ACanvas: ISkCanvas;
+  const ALayout: TRhoBlockLayout; const AScreenTop: Single);
+var
+  R, C: Integer;
+  Cell: TRectF;
+begin
+  for R := 0 to High(ALayout.Rows) do
+    for C := 0 to High(ALayout.Rows[R]) do
       if ALayout.Rows[R][C].Paragraph <> nil then
+      begin
+        Cell := ALayout.Rows[R][C].Rect;
+        Cell.Offset(ALayout.BoxLeft, AScreenTop);
         ALayout.Rows[R][C].Paragraph.Paint(ACanvas,
           Cell.Left + TableCellPadH, Cell.Top + TableCellPadV);
-    end;
+      end;
 end;
 
 { ---- front matter ---- }
@@ -2003,9 +2150,17 @@ begin
       ALayout.MetaRows[I].Height := RowH;
       Y := Y + RowH + TableCellPadV;
 
+      // Record each paragraph's slice of the flattened text as it is built,
+      // so a selection or search hit can be mapped back to the row that draws
+      // it. Flat.Length is the running offset.
       if Flat.Length > 0 then
         Flat.Append(sLineBreak);
-      Flat.Append(Pairs[I].Key).Append(': ').Append(Pairs[I].Value);
+      ALayout.MetaRows[I].KeyStart := Flat.Length;
+      ALayout.MetaRows[I].KeyLen := Length(Pairs[I].Key);
+      Flat.Append(Pairs[I].Key).Append(': ');
+      ALayout.MetaRows[I].ValueStart := Flat.Length;
+      ALayout.MetaRows[I].ValueLen := Length(Pairs[I].Value);
+      Flat.Append(Pairs[I].Value);
     end;
     Y := Y - TableCellPadV;   // drop the gap after the last row
     ALayout.Height := Y + CodePadding;
@@ -2016,12 +2171,13 @@ begin
   end;
 end;
 
-procedure TRhoMarkdownViewer.PaintFrontMatter(const ACanvas: ISkCanvas;
+// Split for the same reason as the table: the highlight layer paints between
+// the panel and the text.
+procedure TRhoMarkdownViewer.PaintFrontMatterPanel(const ACanvas: ISkCanvas;
   const ALayout: TRhoBlockLayout; const AScreenTop: Single);
 var
   Paint: ISkPaint;
   R: TRectF;
-  I: Integer;
 begin
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
@@ -2030,7 +2186,13 @@ begin
   R := RectF(ALayout.BoxLeft, AScreenTop, ALayout.BoxRight,
     AScreenTop + ALayout.Height);
   ACanvas.DrawRoundRect(R, 4, 4, Paint);
+end;
 
+procedure TRhoMarkdownViewer.PaintFrontMatterText(const ACanvas: ISkCanvas;
+  const ALayout: TRhoBlockLayout; const AScreenTop: Single);
+var
+  I: Integer;
+begin
   for I := 0 to High(ALayout.MetaRows) do
   begin
     if ALayout.MetaRows[I].KeyPara <> nil then
@@ -2304,6 +2466,9 @@ begin
   FCopyLabel := nil;   // rebuilt with the current font and colours
   FCopiedLabel := nil;
   FLayout := nil;
+  // Matches index into FLayout, so they go with it. FSearchIndex is kept: the
+  // rebuilt list is identical unless the document itself changed.
+  InvalidateSearchMatches;
   RedrawContent;
 end;
 
@@ -2366,6 +2531,18 @@ end;
 procedure TRhoMarkdownViewer.KeyDown(var Key: Word; var KeyChar: WideChar;
   Shift: TShiftState);
 begin
+  // F3 / Shift+F3 step through search matches - the platform convention. Only
+  // while a search is active, so the key is left alone otherwise.
+  if (Key = vkF3) and (FSearchText <> '') then
+  begin
+    if ssShift in Shift then
+      FindPrevious
+    else
+      FindNext;
+    Key := 0;
+    Exit;
+  end;
+
   // ssCommand as well as ssCtrl, so the shortcuts are native on macOS.
   if (ssCtrl in Shift) or (ssCommand in Shift) then
     case Key of
@@ -3092,12 +3269,11 @@ begin
 end;
 
 procedure TRhoMarkdownViewer.PaintSelection(const ACanvas: ISkCanvas;
-  const ALayout: TRhoBlockLayout; const AIndex: Integer;
-  const AScreenTop: Single);
+  const AIndex: Integer; const AScrollY: Single);
 var
   A, B: TRhoDocPos;
-  S, E, J, Row, Col, CS, CE: Integer;
-  Boxes: TArray<TSkTextBox>;
+  S, E, J: Integer;
+  Rects: TArray<TRectF>;
   Paint: ISkPaint;
   R: TRectF;
 begin
@@ -3106,52 +3282,435 @@ begin
   if (AIndex < A.Block) or (AIndex > B.Block) then
     Exit;
 
+  // Blocks between the two ends are selected whole.
   if AIndex = A.Block then S := A.Offset else S := 0;
-  if AIndex = B.Block then E := B.Offset else E := Length(ALayout.PlainText);
+  if AIndex = B.Block then E := B.Offset
+    else E := Length(FLayout[AIndex].PlainText);
   if E <= S then
+    Exit;
+
+  CollectRangeRects(AIndex, S, E, Rects);
+  if Length(Rects) = 0 then
     Exit;
 
   Paint := TSkPaint.Create;
   Paint.Color := FSelectionColor;
-
-  // A table has no single paragraph: intersect the selection with each cell's
-  // slice of the flattened text and highlight the cells individually.
-  if Length(ALayout.Rows) > 0 then
+  for J := 0 to High(Rects) do
   begin
-    for Row := 0 to High(ALayout.Rows) do
-      for Col := 0 to High(ALayout.Rows[Row]) do
-        with ALayout.Rows[Row][Col] do
-        begin
-          if Paragraph = nil then
-            Continue;
-          CS := Max(S, TextStart);
-          CE := Min(E, TextStart + TextLen);
-          if CE <= CS then
-            Continue;
-          Boxes := Paragraph.GetRectsForRange(CS - TextStart, CE - TextStart,
-            TSkRectHeightStyle.Tight, TSkRectWidthStyle.Tight);
-          for J := 0 to High(Boxes) do
-          begin
-            R := Boxes[J].Rect;
-            R.Offset(ALayout.BoxLeft + Rect.Left + TableCellPadH,
-              AScreenTop + Rect.Top + TableCellPadV);
-            ACanvas.DrawRect(R, Paint);
-          end;
-        end;
-    Exit;
-  end;
-
-  if ALayout.Paragraph = nil then
-    Exit;
-
-  Boxes := ALayout.Paragraph.GetRectsForRange(S, E, TSkRectHeightStyle.Tight,
-    TSkRectWidthStyle.Tight);
-  for J := 0 to High(Boxes) do
-  begin
-    R := Boxes[J].Rect;
-    R.Offset(ALayout.TextLeft, AScreenTop + (ALayout.TextTop - ALayout.Top));
+    R := Rects[J];
+    R.Offset(0, -AScrollY);   // content -> screen
     ACanvas.DrawRect(R, Paint);
   end;
+end;
+
+{ ---- find ----
+
+  Matching runs over the RENDERED text (FLayout[].PlainText), never the
+  markdown source: searching the source would find '**bold**' for "bold" at an
+  offset that corresponds to nothing on screen, and would match link URLs and
+  entity names the reader cannot see.
+
+  Deliberately within-block. Cross-block phrases would need a flattened
+  document string plus a block-offset index; the simpler model covers what a
+  reader actually types. }
+
+// Case folding that PRESERVES LENGTH. SysUtils.LowerCase with a locale can
+// change a string's length for some scripts, which would put every match
+// offset out of step with the paragraph it indexes into. Char.ToLower is
+// per-character, so it cannot.
+function FoldCase(const S: string): string;
+var
+  I: Integer;
+begin
+  SetLength(Result, Length(S));
+  for I := 1 to Length(S) do
+    Result[I] := S[I].ToLower;
+end;
+
+function IsSearchWordChar(const Ch: Char): Boolean;
+begin
+  // IsLetterOrDigit is Unicode-aware, so a whole-word search behaves the same
+  // for accented text as for ASCII.
+  Result := Ch.IsLetterOrDigit or (Ch = '_');
+end;
+
+// APos is 1-based, matching Pos.
+function WholeWordAt(const AText: string; const APos, ALen: Integer): Boolean;
+begin
+  Result := ((APos = 1) or not IsSearchWordChar(AText[APos - 1])) and
+            ((APos + ALen > Length(AText)) or
+             not IsSearchWordChar(AText[APos + ALen]));
+end;
+
+procedure TRhoMarkdownViewer.DoSearchChange;
+begin
+  if Assigned(FOnSearchChange) then
+    FOnSearchChange(Self);
+end;
+
+procedure TRhoMarkdownViewer.InvalidateSearchMatches;
+begin
+  FSearchValid := False;
+  FSearchMatches := nil;
+end;
+
+procedure TRhoMarkdownViewer.RebuildSearchMatches;
+var
+  I, P, N, NeedleLen: Integer;
+  Needle, Hay: string;
+begin
+  FSearchMatches := nil;
+  if FSearchText = '' then
+    Exit;
+
+  if FSearchCaseSensitive then
+    Needle := FSearchText
+  else
+    Needle := FoldCase(FSearchText);
+  NeedleLen := Length(Needle);
+
+  N := 0;
+  SetLength(FSearchMatches, 16);
+  for I := 0 to High(FLayout) do
+  begin
+    // Blocks that render no text (rules, block images) have no PlainText and
+    // so can never match - which is also why they are skipped rather than
+    // searched and found empty.
+    if FLayout[I].PlainText = '' then
+      Continue;
+    if FSearchCaseSensitive then
+      Hay := FLayout[I].PlainText
+    else
+      Hay := FoldCase(FLayout[I].PlainText);
+
+    P := Pos(Needle, Hay);
+    while P > 0 do
+    begin
+      if (not FSearchWholeWords) or WholeWordAt(Hay, P, NeedleLen) then
+      begin
+        if N = Length(FSearchMatches) then
+          SetLength(FSearchMatches, N * 2);
+        FSearchMatches[N].Block := I;
+        FSearchMatches[N].Start := P - 1;   // Pos is 1-based; offsets are not
+        FSearchMatches[N].Len := NeedleLen;
+        Inc(N);
+      end;
+      // Overlapping hits are not reported ('aa' in 'aaa' is one match), which
+      // is what every find bar does.
+      P := Pos(Needle, Hay, P + NeedleLen);
+    end;
+  end;
+  SetLength(FSearchMatches, N);
+end;
+
+procedure TRhoMarkdownViewer.EnsureSearchMatches;
+begin
+  if FSearchValid then
+    Exit;
+
+  if FSearchText = '' then
+  begin
+    FSearchMatches := nil;
+    FSearchValid := True;
+    Exit;
+  end;
+
+  FSearchMatches := nil;   // never leave hits pointing into a dead layout
+  EnsureLayoutForCurrentWidth;
+  if not FLayoutValid then
+    // No content width yet (a search set before the control is shown). Leave
+    // FSearchValid False so the next paint, which does lay out, rebuilds.
+    Exit;
+
+  RebuildSearchMatches;
+  FSearchValid := True;
+  if FSearchIndex > High(FSearchMatches) then
+    FSearchIndex := -1;
+end;
+
+procedure TRhoMarkdownViewer.CollectRangeRects(const ABlock, AStart,
+  AEnd: Integer; var ARects: TArray<TRectF>);
+var
+  L: TRhoBlockLayout;
+  Row, Col, N: Integer;
+
+  procedure Add(const AR: TRectF);
+  begin
+    if N = Length(ARects) then
+      SetLength(ARects, Max(4, N * 2));
+    ARects[N] := AR;
+    Inc(N);
+  end;
+
+  // Intersects the requested range with one paragraph's slice of the block's
+  // flattened PlainText, and emits that paragraph's rects at its own origin.
+  // A block made of several paragraphs (table cells, front-matter rows) is
+  // just repeated calls to this.
+  procedure AddSlice(const APara: ISkParagraph;
+    const ATextStart, ATextLen: Integer; const AOriginX, AOriginY: Single);
+  var
+    CS, CE, J: Integer;
+    Boxes: TArray<TSkTextBox>;
+    R: TRectF;
+  begin
+    if (APara = nil) or (ATextLen <= 0) then
+      Exit;
+    CS := Max(AStart, ATextStart);
+    CE := Min(AEnd, ATextStart + ATextLen);
+    if CE <= CS then
+      Exit;
+    Boxes := APara.GetRectsForRange(CS - ATextStart, CE - ATextStart,
+      TSkRectHeightStyle.Tight, TSkRectWidthStyle.Tight);
+    for J := 0 to High(Boxes) do
+    begin
+      R := Boxes[J].Rect;
+      R.Offset(AOriginX, AOriginY);
+      Add(R);
+    end;
+  end;
+
+begin
+  ARects := nil;
+  N := 0;
+  if (ABlock < 0) or (ABlock > High(FLayout)) or (AEnd <= AStart) then
+    Exit;
+  L := FLayout[ABlock];
+
+  if Length(L.Rows) > 0 then
+  begin
+    for Row := 0 to High(L.Rows) do
+      for Col := 0 to High(L.Rows[Row]) do
+        AddSlice(L.Rows[Row][Col].Paragraph, L.Rows[Row][Col].TextStart,
+          L.Rows[Row][Col].TextLen,
+          L.BoxLeft + L.Rows[Row][Col].Rect.Left + TableCellPadH,
+          L.Top + L.Rows[Row][Col].Rect.Top + TableCellPadV);
+  end
+  else if Length(L.MetaRows) > 0 then
+  begin
+    for Row := 0 to High(L.MetaRows) do
+    begin
+      AddSlice(L.MetaRows[Row].KeyPara, L.MetaRows[Row].KeyStart,
+        L.MetaRows[Row].KeyLen,
+        L.BoxLeft + L.MetaKeyLeft, L.Top + L.MetaRows[Row].Top);
+      AddSlice(L.MetaRows[Row].ValuePara, L.MetaRows[Row].ValueStart,
+        L.MetaRows[Row].ValueLen,
+        L.BoxLeft + L.MetaValueLeft, L.Top + L.MetaRows[Row].Top);
+    end;
+  end
+  else
+    // An ordinary block's single paragraph IS the whole of PlainText, so its
+    // slice starts at 0.
+    AddSlice(L.Paragraph, 0, Length(L.PlainText), L.TextLeft, L.TextTop);
+
+  SetLength(ARects, N);
+end;
+
+procedure TRhoMarkdownViewer.ScrollMatchIntoView(const AMatch: TRhoSearchMatch);
+var
+  Rects: TArray<TRectF>;
+  I: Integer;
+  U: TRectF;
+  VH: Single;
+begin
+  VH := ViewportHeight;
+  if VH <= 0 then
+    Exit;
+
+  CollectRangeRects(AMatch.Block, AMatch.Start, AMatch.Start + AMatch.Len,
+    Rects);
+  if Length(Rects) = 0 then
+  begin
+    // No geometry for the range. The block top is always known, so fall back
+    // to that rather than not moving at all.
+    if (AMatch.Block >= 0) and (AMatch.Block <= High(FLayout)) then
+      SetScrollPos(FLayout[AMatch.Block].Top - FContentPadding);
+    Exit;
+  end;
+
+  U := Rects[0];
+  for I := 1 to High(Rects) do
+    // The class form, not the instance method: TRectF.Union as a method is the
+    // in-place procedure, which is not what an assignment wants.
+    U := TRectF.Union(U, Rects[I]);
+
+  // Only scroll when the match is not already visible, so stepping through
+  // several hits on one screen does not make the page jump about. When it does
+  // scroll, leave a quarter-viewport of context on the leading side.
+  if U.Top < FScrollY + FContentPadding then
+    SetScrollPos(U.Top - VH / 4)
+  else if U.Bottom > FScrollY + VH - FContentPadding then
+    SetScrollPos(U.Bottom - VH + VH / 4);
+end;
+
+procedure TRhoMarkdownViewer.PaintSearchMatches(const ACanvas: ISkCanvas;
+  const AIndex: Integer; const AScrollY: Single);
+var
+  M, J: Integer;
+  Rects: TArray<TRectF>;
+  Paint: ISkPaint;
+  Color: TAlphaColor;
+  R: TRectF;
+begin
+  if Length(FSearchMatches) = 0 then
+    Exit;
+
+  Paint := TSkPaint.Create;
+  for M := 0 to High(FSearchMatches) do
+  begin
+    // Matches come out of RebuildSearchMatches in block order.
+    if FSearchMatches[M].Block < AIndex then
+      Continue;
+    if FSearchMatches[M].Block > AIndex then
+      Break;
+
+    if M = FSearchIndex then
+      Color := FSearchCurrentColor
+    else
+      Color := FSearchHighlightColor;
+    if Color = TAlphaColors.Null then
+      Continue;
+    Paint.Color := Color;
+
+    CollectRangeRects(FSearchMatches[M].Block, FSearchMatches[M].Start,
+      FSearchMatches[M].Start + FSearchMatches[M].Len, Rects);
+    for J := 0 to High(Rects) do
+    begin
+      R := Rects[J];
+      R.Offset(0, -AScrollY);   // content -> screen
+      ACanvas.DrawRect(R, Paint);
+    end;
+  end;
+end;
+
+function TRhoMarkdownViewer.StepSearch(const AForward: Boolean): Boolean;
+var
+  I: Integer;
+begin
+  EnsureSearchMatches;
+  Result := Length(FSearchMatches) > 0;
+
+  if not Result then
+    FSearchIndex := -1
+  else if FSearchIndex < 0 then
+  begin
+    // Nothing current yet: start from what the reader is looking at rather
+    // than from the top of the document.
+    if AForward then
+    begin
+      FSearchIndex := 0;
+      for I := 0 to High(FSearchMatches) do
+        if FLayout[FSearchMatches[I].Block].Top >= FScrollY then
+        begin
+          FSearchIndex := I;
+          Break;
+        end;
+    end
+    else
+    begin
+      FSearchIndex := High(FSearchMatches);
+      for I := High(FSearchMatches) downto 0 do
+        if FLayout[FSearchMatches[I].Block].Top < FScrollY then
+        begin
+          FSearchIndex := I;
+          Break;
+        end;
+    end;
+  end
+  else if AForward then
+    FSearchIndex := (FSearchIndex + 1) mod Length(FSearchMatches)
+  else
+    FSearchIndex := (FSearchIndex + Length(FSearchMatches) - 1)
+      mod Length(FSearchMatches);
+
+  if Result then
+    ScrollMatchIntoView(FSearchMatches[FSearchIndex]);
+  RedrawContent;   // the current-match highlight moved
+  DoSearchChange;
+end;
+
+function TRhoMarkdownViewer.FindNext: Boolean;
+begin
+  Result := StepSearch(True);
+end;
+
+function TRhoMarkdownViewer.FindPrevious: Boolean;
+begin
+  Result := StepSearch(False);
+end;
+
+procedure TRhoMarkdownViewer.ClearSearch;
+begin
+  if (FSearchText = '') and (FSearchIndex < 0) then
+    Exit;
+  FSearchText := '';
+  FSearchMatches := nil;
+  FSearchIndex := -1;
+  FSearchValid := True;   // empty text has no matches; nothing to rebuild
+  RedrawContent;
+  DoSearchChange;
+end;
+
+function TRhoMarkdownViewer.GetSearchMatchCount: Integer;
+begin
+  EnsureSearchMatches;
+  Result := Length(FSearchMatches);
+end;
+
+procedure TRhoMarkdownViewer.SetSearchText(const AValue: string);
+begin
+  if FSearchText = AValue then
+    Exit;
+  FSearchText := AValue;
+  // The old current match means nothing against new text. Note this does NOT
+  // scroll: an incremental find bar assigns on every keystroke, and yanking
+  // the view on each one is unusable. The host calls FindNext to move.
+  FSearchIndex := -1;
+  FSearchValid := False;
+  // Resolve now rather than at the next paint, so SearchMatchCount is correct
+  // by the time this returns and the OnSearchChange handler can read it.
+  EnsureSearchMatches;
+  RedrawContent;
+  DoSearchChange;
+end;
+
+procedure TRhoMarkdownViewer.SetSearchCaseSensitive(const AValue: Boolean);
+begin
+  if FSearchCaseSensitive = AValue then
+    Exit;
+  FSearchCaseSensitive := AValue;
+  FSearchIndex := -1;
+  FSearchValid := False;
+  EnsureSearchMatches;
+  RedrawContent;
+  DoSearchChange;
+end;
+
+procedure TRhoMarkdownViewer.SetSearchWholeWords(const AValue: Boolean);
+begin
+  if FSearchWholeWords = AValue then
+    Exit;
+  FSearchWholeWords := AValue;
+  FSearchIndex := -1;
+  FSearchValid := False;
+  EnsureSearchMatches;
+  RedrawContent;
+  DoSearchChange;
+end;
+
+procedure TRhoMarkdownViewer.SetSearchHighlightColor(const AValue: TAlphaColor);
+begin
+  if FSearchHighlightColor = AValue then
+    Exit;
+  FSearchHighlightColor := AValue;
+  RedrawContent;   // decoration only - not baked into the paragraphs
+end;
+
+procedure TRhoMarkdownViewer.SetSearchCurrentColor(const AValue: TAlphaColor);
+begin
+  if FSearchCurrentColor = AValue then
+    Exit;
+  FSearchCurrentColor := AValue;
+  RedrawContent;   // decoration only
 end;
 
 { ---- code-block copy button ---- }
@@ -3350,6 +3909,10 @@ begin
 
   TextWidth := Max(1, AWidth - FContentPadding * 2);
   EnsureLayout(TextWidth);
+  // Matches index into the layout that was just (re)built. This is also what
+  // picks up a search set before the control had a width. It fires no event -
+  // OnSearchChange must never reach a host from inside the paint pass.
+  EnsureSearchMatches;
 
   // Quote bars first, behind the text. Nested quotes are separate spans at
   // increasing Left, so `>>` draws two bars.
@@ -3379,13 +3942,18 @@ begin
     if ScreenTop + FLayout[I].Height < 0 then
       Continue;
 
+    // Painting order per block, and it matters: all chrome, then the highlight
+    // layer, then all text. A table or a front-matter card draws in two passes
+    // precisely so its text lands on the correct side of that line - drawing
+    // either in one pass puts its text UNDER the highlight, which an opaque
+    // current-match colour then hides.
     PaintDecorations(ACanvas, FLayout[I], ScreenTop);
 
     if Length(FLayout[I].Rows) > 0 then
-      PaintTable(ACanvas, FLayout[I], ScreenTop);
+      PaintTableChrome(ACanvas, FLayout[I], ScreenTop);
 
     if FLayout[I].Block.Kind = bkFrontMatter then
-      PaintFrontMatter(ACanvas, FLayout[I], ScreenTop);
+      PaintFrontMatterPanel(ACanvas, FLayout[I], ScreenTop);
 
     if FLayout[I].Image <> nil then
     begin
@@ -3395,8 +3963,16 @@ begin
         TSkSamplingOptions.High);
     end;
 
-    // Selection sits behind the glyphs, above the block decorations.
-    PaintSelection(ACanvas, FLayout[I], I, ScreenTop);
+    // Search highlights sit under the selection; both are behind every glyph
+    // and above the block chrome.
+    PaintSearchMatches(ACanvas, I, AScrollY);
+    PaintSelection(ACanvas, I, AScrollY);
+
+    if Length(FLayout[I].Rows) > 0 then
+      PaintTableText(ACanvas, FLayout[I], ScreenTop);
+
+    if FLayout[I].Block.Kind = bkFrontMatter then
+      PaintFrontMatterText(ACanvas, FLayout[I], ScreenTop);
 
     if FLayout[I].Marker <> nil then
       FLayout[I].Marker.Paint(ACanvas, FLayout[I].MarkerLeft, ScreenTop);

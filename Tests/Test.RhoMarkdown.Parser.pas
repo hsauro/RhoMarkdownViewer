@@ -24,6 +24,14 @@ type
     [Test]
     procedure ParseBlocksExtractsFenceLanguage;
     [Test]
+    procedure ParseBlocksLongFenceContainsBackticks;
+    [Test]
+    procedure ParseBlocksTildeFenceContainsBackticks;
+    [Test]
+    procedure ParseBlocksShortFenceDoesNotCloseLongOne;
+    [Test]
+    procedure ParseBlocksLongFenceKeepsSourceMap;
+    [Test]
     procedure ParseBlocksParsesIndentedCode;
     [Test]
     procedure ParseBlocksIndentedCodeKeepsInteriorBlank;
@@ -129,6 +137,8 @@ type
     procedure TrimLeftOnlyRemovesLeadingWhitespaceOnly;
     [Test]
     procedure StartsWithFenceRecognizesIndentedFence;
+    [Test]
+    procedure IsClosingFenceRequiresSameCharAndLength;
     [Test]
     procedure IsRuleLineAcceptsRulesAndRejectsOthers;
     [Test]
@@ -310,6 +320,114 @@ begin
     Assert.IsTrue(Blocks[0].Kind = bkCodeBlock);
     Assert.AreEqual('pascal', Blocks[0].CodeLanguage);
     Assert.AreEqual('var X: Integer;', Blocks[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksLongFenceContainsBackticks;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  // The reported case: Antimony (like Python) writes multi-line notes between
+  // triple backticks, so the code itself contains ```. A four-backtick fence
+  // must carry it verbatim - only a fence at least as long closes the block.
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('````antimony');
+    Lines.Add('model notes ```');
+    Lines.Add('This model reproduces figure 3 of the paper.');
+    Lines.Add('```');
+    Lines.Add('````');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkCodeBlock);
+    Assert.AreEqual('antimony', Blocks[0].CodeLanguage);
+    Assert.AreEqual('model notes ```' + sLineBreak +
+      'This model reproduces figure 3 of the paper.' + sLineBreak + '```',
+      Blocks[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksTildeFenceContainsBackticks;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  // The other escape hatch: a tilde fence is closed only by tildes, so the
+  // content may contain backtick fences of any length.
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('~~~antimony');
+    Lines.Add('```');
+    Lines.Add('````');
+    Lines.Add('~~~');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkCodeBlock);
+    Assert.AreEqual('antimony', Blocks[0].CodeLanguage);
+    Assert.AreEqual('```' + sLineBreak + '````', Blocks[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksShortFenceDoesNotCloseLongOne;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  // A closing fence must have nothing but whitespace after it, and must be at
+  // least as long as the opener. Neither line here qualifies.
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('````');
+    Lines.Add('``` still inside');
+    Lines.Add('````');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.AreEqual('``` still inside', Blocks[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksLongFenceKeepsSourceMap;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+  Map: TArray<Integer>;
+begin
+  // The map must span the WHOLE block. The mapper used to stop at any line
+  // starting with a fence, so the inner ``` truncated it - and a map that does
+  // not account for every character is DISCARDED, so the symptom is an empty
+  // map (verbatim copy silently degrading to plain text), not a short one.
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('````ant');
+    Lines.Add('a');
+    Lines.Add('```');
+    Lines.Add('b');
+    Lines.Add('````');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.AreEqual('a' + sLineBreak + '```' + sLineBreak + 'b',
+      Blocks[0].Text);
+    Map := Blocks[0].SourceMap;
+    // One entry per character, plus the one-past-the-end sentinel a selection
+    // ending at the block's last character needs.
+    Assert.AreEqual<Integer>(Length(Blocks[0].Text) + 1, Length(Map));
   finally
     Blocks.Free;
     Lines.Free;
@@ -1308,6 +1426,25 @@ begin
   Assert.IsTrue(TMarkDownBlockParser.StartsWithFence('   ```'));
   Assert.IsFalse(TMarkDownBlockParser.StartsWithFence('``'));
   Assert.IsFalse(TMarkDownBlockParser.StartsWithFence('text'));
+  // Longer runs and tilde fences open a block too.
+  Assert.IsTrue(TMarkDownBlockParser.StartsWithFence('````antimony'));
+  Assert.IsTrue(TMarkDownBlockParser.StartsWithFence('~~~'));
+  Assert.IsFalse(TMarkDownBlockParser.StartsWithFence('~~strike~~'));
+  // A backtick fence's info string may not contain a backtick, or a line that
+  // is really inline code would open a block.
+  Assert.IsFalse(TMarkDownBlockParser.StartsWithFence('``` `a` ```'));
+end;
+
+procedure TMarkDownParserTests.IsClosingFenceRequiresSameCharAndLength;
+begin
+  // Same character, at least as long, nothing but whitespace after it.
+  Assert.IsTrue(TMarkDownBlockParser.IsClosingFence('```', '`', 3));
+  Assert.IsTrue(TMarkDownBlockParser.IsClosingFence('````', '`', 3));
+  Assert.IsTrue(TMarkDownBlockParser.IsClosingFence('```  ', '`', 3));
+  Assert.IsFalse(TMarkDownBlockParser.IsClosingFence('```', '`', 4));
+  Assert.IsFalse(TMarkDownBlockParser.IsClosingFence('```pascal', '`', 3));
+  Assert.IsFalse(TMarkDownBlockParser.IsClosingFence('~~~', '`', 3));
+  Assert.IsTrue(TMarkDownBlockParser.IsClosingFence('~~~', '~', 3));
 end;
 
 procedure TMarkDownParserTests.IsRuleLineAcceptsRulesAndRejectsOthers;

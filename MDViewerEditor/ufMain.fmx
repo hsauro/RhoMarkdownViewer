@@ -17,7 +17,7 @@ object frmMain: TfrmMain
     Size.PlatformDefault = False
     TabOrder = 1
     object btnOpen: TButton
-      Position.X = 118.000000000000000000
+      Position.X = 104.000000000000000000
       Position.Y = 11.000000000000000000
       TabOrder = 2
       Text = 'Open'
@@ -55,6 +55,7 @@ object frmMain: TfrmMain
       OnClick = btnNewClick
     end
     object Label1: TLabel
+      Anchors = [akTop, akRight]
       Position.X = 977.000000000000000000
       Position.Y = 12.000000000000000000
       Size.Width = 56.000000000000000000
@@ -64,7 +65,7 @@ object frmMain: TfrmMain
       TabOrder = 6
     end
     object btnSave: TButton
-      Position.X = 214.000000000000000000
+      Position.X = 200.000000000000000000
       Position.Y = 11.000000000000000000
       TabOrder = 1
       Text = 'Save'
@@ -80,12 +81,100 @@ object frmMain: TfrmMain
       OnClick = btnOpenClosePanelClick
     end
   end
+  object FindBar: TLayout
+    Align = Top
+    Position.Y = 44.000000000000000000
+    Size.Width = 1256.000000000000000000
+    Size.Height = 34.000000000000000000
+    Size.PlatformDefault = False
+    Visible = False
+    TabOrder = 7
+    object lblFind: TLabel
+      Position.X = 8.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 30.000000000000000000
+      Size.Height = 18.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Find:'
+      TabOrder = 0
+    end
+    object edtFind: TEdit
+      Position.X = 44.000000000000000000
+      Position.Y = 6.000000000000000000
+      Size.Width = 240.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      OnChangeTracking = edtFindChangeTracking
+      OnKeyDown = edtFindKeyDown
+    end
+    object btnFindPrev: TButton
+      Position.X = 292.000000000000000000
+      Position.Y = 6.000000000000000000
+      Size.Width = 74.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      Text = 'Previous'
+      OnClick = btnFindPrevClick
+    end
+    object btnFindNext: TButton
+      Position.X = 372.000000000000000000
+      Position.Y = 6.000000000000000000
+      Size.Width = 74.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 3
+      Text = 'Next'
+      OnClick = btnFindNextClick
+    end
+    object chkMatchCase: TCheckBox
+      Position.X = 460.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 100.000000000000000000
+      Size.Height = 19.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 4
+      Text = 'Match case'
+      OnChange = FindOptionChange
+    end
+    object chkWholeWord: TCheckBox
+      Position.X = 568.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 104.000000000000000000
+      Size.Height = 19.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 5
+      Text = 'Whole word'
+      OnChange = FindOptionChange
+    end
+    object lblFindStatus: TLabel
+      Position.X = 684.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 160.000000000000000000
+      Size.Height = 18.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 6
+    end
+    object btnFindClose: TButton
+      Anchors = [akTop, akRight]
+      Position.X = 1214.000000000000000000
+      Position.Y = 6.000000000000000000
+      Size.Width = 34.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 7
+      Text = 'X'
+      OnClick = btnFindCloseClick
+    end
+  end
   object TextLayoutPanel: TLayout
     Align = Left
     Position.Y = 44.000000000000000000
     Size.Width = 561.000000000000000000
     Size.Height = 776.000000000000000000
     Size.PlatformDefault = False
+    Visible = False
     TabOrder = 2
     object TextMemo: TMemo
       Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
@@ -105,7 +194,6 @@ object frmMain: TfrmMain
     Align = Left
     Cursor = crHSplit
     MinSize = 20.000000000000000000
-    Position.X = 561.000000000000000000
     Position.Y = 44.000000000000000000
     Size.Width = 10.000000000000000000
     Size.Height = 776.000000000000000000
@@ -121,6 +209,8 @@ object frmMain: TfrmMain
     HeadingRuleColor = xFFD0D7DE
     HighlightColor = xFFFFF3A3
     SelectionColor = x60318CE7
+    SearchHighlightColor = x80FFB300
+    SearchCurrentMatchColor = xFFFF9800
     SyntaxColors.PlainColor = claNull
     SyntaxColors.KeywordColor = claBlue
     SyntaxColors.CommentColor = claGreen
@@ -131,20 +221,15 @@ object frmMain: TfrmMain
     SyntaxColors.SymbolColor = xFF505050
     FontFamily = 'Segoe UI'
     CodeFontFamily = 'Consolas'
-    FontSize = 14.000000000000000000
+    FontSize = 20.000000000000000000
     ContentPadding = 12.000000000000000000
     Align = Client
-    Size.Width = 685.000000000000000000
+    Size.Width = 1246.000000000000000000
     Size.Height = 776.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 4
     OnDragOver = FViewerDragOver
     OnDragDrop = FViewerDragDrop
-  end
-  object Layout3: TLayout
-    Position.X = 600.000000000000000000
-    Position.Y = 400.000000000000000000
-    TabOrder = 6
   end
   object Layout4: TLayout
     Align = Bottom
@@ -152,7 +237,7 @@ object frmMain: TfrmMain
     Size.Width = 1256.000000000000000000
     Size.Height = 26.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 7
+    TabOrder = 6
     object lblFileName: TLabel
       Position.X = 8.000000000000000000
       Position.Y = 4.000000000000000000
@@ -161,6 +246,45 @@ object frmMain: TfrmMain
       Size.PlatformDefault = False
       Text = 'lblFileName'
       TabOrder = 0
+    end
+  end
+  object MainMenu1: TMainMenu
+    Left = 827
+    Top = 92
+    object mnuFile: TMenuItem
+      Text = 'FIle'
+      object mnuNew: TMenuItem
+        Locked = True
+        Text = 'New'
+      end
+      object mnuOpen: TMenuItem
+        Locked = True
+        Text = 'Open'
+      end
+      object MenuItem6: TMenuItem
+        Locked = True
+        Text = '-'
+      end
+      object mnuQuit: TMenuItem
+        Locked = True
+        Text = 'Quit'
+      end
+    end
+    object MenuItem2: TMenuItem
+      Text = 'Edit'
+      object mnuFind: TMenuItem
+        Locked = True
+        Text = 'Find...'
+        OnClick = mnuFindClick
+      end
+    end
+    object MenuItem3: TMenuItem
+      Text = 'Help'
+      object MenuItem8: TMenuItem
+        Locked = True
+        Text = 'About'
+        OnClick = MenuItem8Click
+      end
     end
   end
 end

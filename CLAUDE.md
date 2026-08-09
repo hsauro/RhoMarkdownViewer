@@ -69,6 +69,7 @@ said as much. Tested empirically; the failing cases live in
 | **Multi-paragraph list item** | ✅ **fixed (Phase B)** — item holds child blocks |
 | **Code block inside a list item** | ✅ **fixed (Phase B)** — code nests under the item |
 | Inline HTML `<b>x</b>` | ✅ **whitelist** — formatting tags + `<img>`; rest literal |
+| **Fence length / `~~~` fences** | ✅ **fixed 2026-08-09** — see below |
 | Ordered list starting at N | ✅ works |
 | Link with title | ✅ works |
 | `***` / `___` breaks | ✅ work |
@@ -79,6 +80,29 @@ columns and preserving interior blank lines. Guards: it will not interrupt a
 paragraph, and declines right after a list item. Indented blocks carry **no
 source map** (the `bkCodeBlock` mapper assumes a fence), so the dispatch routes
 only fenced blocks to it and indented ones fall back to nearest-neighbour copy.
+
+**Code fences: length matters, and `~~~` works.** A fence closes a block only
+if it uses the **same character**, is **at least as long** as the opener, and
+has **nothing but whitespace** after it. Before this, `StartsWithFence` was
+`Copy(TrimLeftOnly(S), 1, 3) = '```'` and served as both the opening *and* the
+closing test, so every fence was three backticks: a ````-fenced block ended at
+its first inner ```, and there was no way at all to show code in a language that
+uses ``` itself — Antimony and Python triple-quoted strings, or any document
+about markdown. Reported from real Antimony source.
+
+`FenceRun` decomposes a fence line into character, run length and info string;
+`StartsWithFence` is the opening test (a backtick fence's info string may not
+contain a backtick); `IsClosingFence(S, AChar, ALen)` is the closing test and
+**needs the opening fence's character and length** — that is why `ParseBlocks`
+records them when it opens the block. ⚠️ **`MapJoinedLines` has the same
+requirement and it is easy to miss**: it took `StopAtFence: Boolean` and broke
+on any fence, so an inner ``` truncated the source map — and a map that does not
+account for every character is *discarded entirely*, so the symptom was verbatim
+copy silently degrading to plain text, not a visibly wrong map. It now derives
+the fence from the block's own opening line.
+
+Cases live in `Demo/sample.md`; `ParseBlocksLongFenceContainsBackticks` and
+friends cover the parse and the source map.
 
 **Container blocks — Phases A (quotes) and B (list items) done.**
 `TMarkDownBlock` has an owned `Children: TMarkDownBlockList`. A `bkQuote` is a
@@ -132,11 +156,11 @@ is not. Audited against its README feature list.
   disables them (VCL `clNone` parity). Independent of `RuleColor`, which still
   drives the horizontal rule, table borders, checkbox and copy button.
 
-**Still outstanding:**
+- **Find/search** — ✅ **done 2026-08-09.** `SearchText`, `FindNext`,
+  `FindPrevious`, `SearchMatchCount` and more; see the Find section below. The
+  component owns the mechanism, the host owns the find bar.
 
-- **Find/search** — `SearchText`, `SearchHighlightColor`, `FindNext`,
-  `FindPrevious`, `SearchMatchCount`. Absent entirely; the largest gap. Low
-  priority (user, 2026-07-22).
+**Nothing from the VCL API is outstanding.**
 
 Dropped by decision: **`AppendMarkdownText`** incremental streaming — the user
 does not want it; reparsing the whole document on every change is fine.
@@ -378,6 +402,17 @@ Mirror RhoEditor:
   - **Task toggle mirror** — `AllowTaskToggle` is on, and `OnTaskToggle` copies
     the viewer's rewritten source back into the memo (the viewer owns the source
     of truth once a checkbox is clicked).
+  - **Find bar** — `FindBar`, a Top-aligned `TLayout`, hidden until **Edit ▸
+    Find…** (Ctrl+F). It is the reference example of the host's half of the find
+    split: term, two option checkboxes, Prev/Next, and a `n of m` counter driven
+    solely by `OnSearchChange`. Typing searches incrementally — the host calls
+    `FindNext` after each assignment, because the component deliberately does
+    not scroll on `SearchText :=`.
+    ⚠️ **`TMenuItem.ShortCut` is a `TShortCut` (an integer), not a string.**
+    Writing `ShortCut = 'Ctrl+F'` in the `.fmx` streams as *Invalid property
+    value* and takes the **whole form** down — the app then exits at startup
+    with no window and no message, which reads like a build problem rather than
+    a form problem. `FormCreate` sets it via `TextToShortCut` instead.
 
   `uExamples.pas` holds the sample documents shown in the combo (`GetExample1..5`).
   **`GetExample5` ("Containers & HTML") is the showcase for the container-block
@@ -554,7 +589,7 @@ msbuild Packages\RhoMarkdownViewer.dproj /t:Build /p:Config=Debug /p:Platform=Wi
 
   ```
   msbuild Tools\MarkdownRender\MarkdownRender.dproj /t:Build /p:Config=Debug /p:Platform=Win64
-  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark]
+  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|anchors|search <term>]
   ```
 
   The optional fifth argument switches on a verification mode: `links` tints
@@ -673,6 +708,68 @@ Win64\MarkdownRender.exe sel.md out.png 600 14 select
 Non-ASCII in that dump may look mangled in the console; that is the console
 codepage, not the data.
 
+### Find
+
+The component owns the **mechanism** — matching, highlighting, scrolling a hit
+into view — and the host owns the **find bar**. That split is forced, not
+stylistic: matching needs `FLayout[].PlainText`, highlighting needs
+`GetRectsForRange` plus a hook in the paint pass, and none of it is reachable
+from outside. The UI, by contrast, needs no privileged access, and baking one in
+would fight every host's styling. Same reasoning as `ApplyTheme` being a method.
+
+API: `SearchText`, `SearchCaseSensitive`, `SearchWholeWords`,
+`SearchHighlightColor`, `SearchCurrentMatchColor` (all published),
+`SearchMatchCount` / `SearchMatchIndex` (public, read-only), `FindNext`,
+`FindPrevious`, `ClearSearch`, and `OnSearchChange`. `F3` / `Shift+F3` are
+handled in `KeyDown` when a search is active.
+
+**Matching runs over the rendered text, never the source** — searching the
+markdown would find `**bold**` for "bold" at an offset corresponding to nothing
+on screen, and would match link URLs and entity names the reader cannot see.
+
+**Within-block by design.** A phrase spanning a paragraph break is not found.
+Cross-block would need a flattened document string plus a block-offset index;
+the simple model covers what a reader types. `TRhoSearchMatch` is
+`(Block, Start, Len)` rather than a `TRhoDocPos` pair *because* of that.
+
+Load-bearing details:
+
+- **`FSearchIndex` deliberately survives a re-layout, `FSearchMatches` does
+  not.** Matches index into `FLayout`, so `InvalidateLayout` drops them; but
+  `PlainText` does not depend on the width, so the rebuilt list is identical
+  after a resize and keeping the index keeps the reader's place.
+- **`OnSearchChange` must never fire from the paint pass.** `PaintDocument`
+  calls `EnsureSearchMatches` (which is silent); every other entry point calls
+  it and then `DoSearchChange`. A host updating a label from inside a Skia draw
+  is asking for re-entrancy.
+- **Setting `SearchText` highlights but does not scroll.** An incremental find
+  bar assigns on every keystroke; yanking the view each time is unusable. The
+  host calls `FindNext` to move.
+- **`FoldCase` is per-character (`Char.ToLower`), not `SysUtils.LowerCase`.**
+  A locale-aware lower-case can change a string's *length* for some scripts,
+  which would put every match offset out of step with the paragraph it indexes.
+- **`CollectRangeRects` is the one place a character range becomes geometry.**
+  Selection and search both go through it, so a block kind that highlights for
+  one highlights for the other. Add a multi-paragraph block kind there — a
+  `(paragraph, TextStart, TextLen, originX, originY)` slice per paragraph — and
+  both work at once. (It replaced two near-identical copies that had already
+  drifted: front-matter cards highlighted in neither.)
+- 🔴 **Paint order per block is chrome → highlights → text.** Tables and
+  front-matter cards therefore draw in **two** passes each
+  (`PaintTableChrome`/`PaintTableText`,
+  `PaintFrontMatterPanel`/`PaintFrontMatterText`), so their text lands above the
+  highlight layer. Merge either back into one pass and its text goes *under* the
+  highlight — invisible under an opaque current-match colour, and merely tinted
+  under a translucent selection, which is why it can hide for a long time.
+
+Verify with the render tool's `search` mode, which reports the match count
+under each option combination and renders the highlights (`dark` composes with
+it):
+
+```
+MarkdownRender.exe doc.md out.png 760 14 search alpha [dark]
+```
+
 ### Tables
 
 Three passes in `LayoutTable`: natural column widths from each cell's
@@ -728,7 +825,12 @@ wrap the last glyph, the same float-rounding trap documented for table columns.
 
 `PlainText` is set to reconstructed `key: value` lines, so the card is
 selectable and copies cleanly; no source map (fallback). HTML export emits it as
-`<pre><code>` alongside `bkCodeBlock`.
+`<pre><code>` alongside `bkCodeBlock`. Each `TRhoMetaRow` records
+`KeyStart`/`KeyLen` and `ValueStart`/`ValueLen` — its slice of that flattened
+text, exactly as `TRhoTableCell` does — which is what lets selection and search
+*highlight* the card rather than silently drawing nothing. The `': '` separator
+belongs to neither paragraph and so never highlights, the same way a table's
+TAB separators do not.
 
 ### Anchor links
 
@@ -911,6 +1013,17 @@ rather than an error:
 Also: before concluding "scrolling is broken", check the document is actually
 taller than the viewport. A short sample fits entirely, and *correctly* does not
 scroll.
+
+Two more, learned the hard way:
+
+- **A GUI app launched from a tool shell dies when that shell exits.** Launch,
+  drive and screenshot must all happen inside **one** shell invocation, or the
+  process is gone before the next call runs.
+- 🔴 **`SendKeys` types into whatever window has focus, which may not be the
+  app.** It went into the user's terminal instead, mid-session. Prefer the
+  headless render tool for anything it can verify; if the GUI genuinely must be
+  driven, post messages to a specific `HWND` rather than synthesising global
+  keystrokes, and never leave focus-stealing automation running unattended.
 
 ## Non-goals
 

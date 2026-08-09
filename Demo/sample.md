@@ -93,6 +93,25 @@ def greet(name):
 Fenced block with no language tag - should render plain.
 ```
 
+A longer fence carries shorter ones verbatim - the only way to show code in a
+language that uses ``` itself, such as an Antimony or Python triple-quoted
+string. Everything between the outer ```` fences below is one code block:
+
+````antimony
+model notes ```
+This model reproduces figure 3 of the paper.
+```
+
+  J0: $Xo -> S1; k1*Xo
+end
+````
+
+A tilde fence is the other escape hatch, and is closed only by tildes:
+
+~~~text
+``` and ```` both survive in here
+~~~
+
 Four-space indented code block (no fence), line breaks preserved:
 
     procedure Indented;

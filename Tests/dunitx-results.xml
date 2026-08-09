@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<test-results name="D:\Documents\Embarcadero\Studio\Projects\fmx\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="168" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-07-24" time="16:17:31">
+<test-results name="D:\Documents\Embarcadero\Studio\Projects\fmx\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="173" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-08-09" time="12:10:39">
   <culture-info current-culture="en" current-uiculture="en" />
-  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="16:17:31" asserts="0">
+  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="12:10:39" asserts="0">
     <results>
-        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.011" asserts="0" >
+        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.013" asserts="0" >
           <results>
-              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.011" asserts="0" >
+              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.013" asserts="0" >
                 <results>
-                    <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.010" >
+                    <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.012" >
                       <results>
                         <test-case name="TestDelphiKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDelphiComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -62,7 +62,7 @@
                         <test-case name="TestDfmPropertyValues" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDfmCharConstants" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDelphiSourceFileAliases" executed="True" result="Success" success="True" time="0.000" asserts="0" />
-                        <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.007" asserts="0" />
+                        <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.009" asserts="0" />
                         <test-case name="TestTokenStreamInvariantsAdversarialInput" executed="True" result="Success" success="True" time="0.003" asserts="0" />
                         <test-case name="TestLaTeXHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestPowerShellHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -107,6 +107,10 @@
                         <test-case name="ParseBlocksJoinsParagraphLines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksGroupsFencedCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksExtractsFenceLanguage" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksLongFenceContainsBackticks" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksTildeFenceContainsBackticks" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksShortFenceDoesNotCloseLongOne" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksLongFenceKeepsSourceMap" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksParsesIndentedCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksIndentedCodeKeepsInteriorBlank" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksIndentedCodeDoesNotInterruptParagraph" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -160,6 +164,7 @@
                         <test-case name="CountLeadingSpacesCountsSpacesAndTabs" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TrimLeftOnlyRemovesLeadingWhitespaceOnly" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="StartsWithFenceRecognizesIndentedFence" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="IsClosingFenceRequiresSameCharAndLength" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="IsRuleLineAcceptsRulesAndRejectsOthers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="IsPipeTableRowDetectsPipe" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="SplitTableRowSplitsCells" executed="True" result="Success" success="True" time="0.000" asserts="0" />

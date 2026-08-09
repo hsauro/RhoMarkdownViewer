@@ -4,7 +4,7 @@ program MarkdownRender;
   Renders a markdown file to a PNG through the real TRhoMarkdownViewer layout
   and paint path, with no window involved.
 
-    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|anchors]
+    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|anchors|search <term>]
 
   Passing "links" as the fifth argument overlays a translucent marker wherever
   LinkAt reports a link, by probing the document on a grid. That verifies the
@@ -77,7 +77,10 @@ begin
   try
     if FontSize > 0 then
       Viewer.FontSize := FontSize;
-    if (ParamCount >= 5) and SameText(ParamStr(5), 'dark') then
+    // 'dark' is accepted in any of the trailing slots, so it composes with a
+    // mode that already uses the sixth argument (search <term> dark).
+    if SameText(ParamStr(5), 'dark') or SameText(ParamStr(6), 'dark') or
+       SameText(ParamStr(7), 'dark') then
       Viewer.ApplyTheme(rtDark);
     Viewer.LoadFromFile(InputFile);
 
@@ -115,6 +118,33 @@ begin
       Writeln(Copy(Viewer.SelectedText(True), 1, 300));
       Writeln('--- lengths: markdown=', Length(Viewer.SelectedText(False)),
         ' plain=', Length(Viewer.SelectedText(True)), ' ---');
+    end;
+
+    if (ParamCount >= 5) and SameText(ParamStr(5), 'search') then
+    begin
+      // Sixth argument is the term. Runs the real find path: SearchText
+      // highlights every hit, FindNext makes one of them current (drawn in
+      // SearchCurrentMatchColor), then the document is re-rendered so both
+      // show. Nothing scrolls - the control is unparented, so the whole
+      // document is on the canvas already.
+      Viewer.SearchText := ParamStr(6);
+      Writeln('--- search "', ParamStr(6), '" ---');
+      Writeln('  matches = ', Viewer.SearchMatchCount);
+      // Both options reported from the same term, so a regression in either
+      // shows up as a count that no longer relates to the plain one.
+      Viewer.SearchCaseSensitive := True;
+      Writeln('  case-sensitive  = ', Viewer.SearchMatchCount);
+      Viewer.SearchCaseSensitive := False;
+      Viewer.SearchWholeWords := True;
+      Writeln('  whole-word      = ', Viewer.SearchMatchCount);
+      Viewer.SearchWholeWords := False;
+      Writeln('  FindNext -> ', BoolToStr(Viewer.FindNext, True),
+        ', current = ', Viewer.SearchMatchIndex);
+      Writeln('  FindPrevious wraps -> ',
+        BoolToStr(Viewer.FindPrevious, True),
+        ', current = ', Viewer.SearchMatchIndex);
+      Viewer.FindNext;
+      Viewer.RenderToCanvas(Surface.Canvas, Width, Height, 0);
     end;
 
     if (ParamCount >= 5) and SameText(ParamStr(5), 'anchors') then

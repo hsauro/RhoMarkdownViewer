@@ -6,7 +6,8 @@ uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Memo.Types,
   FMX.Controls.Presentation, FMX.ScrollBox, FMX.Memo, uRhoMarkdownViewer,
-  FMX.StdCtrls, FMX.Layouts, FMX.ListBox, uExamples, System.Math;
+  FMX.StdCtrls, FMX.Layouts, FMX.ListBox, uExamples, System.Math, FMX.Menus,
+  FMX.Edit;
 
 type
   TfrmMain = class(TForm)
@@ -22,10 +23,31 @@ type
     btnNew: TButton;
     Label1: TLabel;
     btnSave: TButton;
-    Layout3: TLayout;
     Layout4: TLayout;
     lblFileName: TLabel;
     btnOpenClosePanel: TSpeedButton;
+    MainMenu1: TMainMenu;
+    mnuFile: TMenuItem;
+    MenuItem2: TMenuItem;
+    MenuItem3: TMenuItem;
+    mnuNew: TMenuItem;
+    mnuOpen: TMenuItem;
+    MenuItem6: TMenuItem;
+    mnuQuit: TMenuItem;
+    MenuItem8: TMenuItem;
+    // Find bar. The viewer owns matching, highlighting and scrolling; this is
+    // only the UI that drives it - see the find section of the component's
+    // CLAUDE.md for why the split falls there.
+    FindBar: TLayout;
+    lblFind: TLabel;
+    edtFind: TEdit;
+    btnFindPrev: TButton;
+    btnFindNext: TButton;
+    chkMatchCase: TCheckBox;
+    chkWholeWord: TCheckBox;
+    lblFindStatus: TLabel;
+    btnFindClose: TButton;
+    mnuFind: TMenuItem;
     procedure btnOpenClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure cboComboChange(Sender: TObject);
@@ -39,6 +61,15 @@ type
     procedure btnUpdateClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure btnOpenClosePanelClick(Sender: TObject);
+    procedure MenuItem8Click(Sender: TObject);
+    procedure mnuFindClick(Sender: TObject);
+    procedure edtFindChangeTracking(Sender: TObject);
+    procedure edtFindKeyDown(Sender: TObject; var Key: Word;
+      var KeyChar: WideChar; Shift: TShiftState);
+    procedure btnFindNextClick(Sender: TObject);
+    procedure btnFindPrevClick(Sender: TObject);
+    procedure btnFindCloseClick(Sender: TObject);
+    procedure FindOptionChange(Sender: TObject);
   private
     { Private declarations }
     // Guards against the two scroll handlers driving each other in a loop:
@@ -59,6 +90,12 @@ type
     // rewritten its own source, so mirror it back into the editor memo.
     procedure ViewerTaskToggle(Sender: TObject; const AText: string; AChecked: Boolean);
       procedure ChangeTheme;
+    // Find bar plumbing.
+    procedure ShowFindBar;
+    procedure CloseFindBar;
+    // Fired by the viewer whenever the search state changes - the only place
+    // the match counter is written, so it cannot drift out of step.
+    procedure ViewerSearchChange(Sender: TObject);
   public
     { Public declarations }
   end;
@@ -71,6 +108,9 @@ implementation
 {$R *.fmx}
 
 Uses IOUtils;
+
+Const
+   VERSION = '0.5';
 
 type
   TComboBoxHelper = class helper for TComboBox
@@ -115,10 +155,10 @@ begin
      PanelSplitter.Visible := False;
      end
   else
-    begin
-    TextLayoutPanel.Visible := True;
+     begin
+     TextLayoutPanel.Visible := True;
      PanelSplitter.Visible := True;
-    end;
+     end;
 end;
 
 procedure TfrmMain.btnSaveClick(Sender: TObject);
@@ -176,8 +216,28 @@ begin
   FViewer.AllowTaskToggle := True;
   FViewer.OnTaskToggle := ViewerTaskToggle;
 
+  // Find. Ctrl+F opens the bar (Edit menu); the viewer handles F3 / Shift+F3
+  // itself once it has focus.
+  FViewer.OnSearchChange := ViewerSearchChange;
+  FindBar.Visible := False;
+  lblFindStatus.Text := '';
+  // TMenuItem.ShortCut is a TShortCut (an integer), not a string - streaming
+  // 'Ctrl+F' from the .fmx raises "Invalid property value" and takes the whole
+  // form down with it. Set it through TextToShortCut instead of hard-coding
+  // the magic number.
+  mnuFind.ShortCut := TextToShortCut('Ctrl+F');
+
   lblFileName.Text := '(untitled)';
   FDark := False;
+
+  if ParamCount > 0 then
+     begin
+     If FileExists (ParamStr (1)) then
+        begin
+        FViewer.LoadFromFile(ParamStr (1));
+        TextMemo.Text := FViewer.MarkdownText;
+        end;
+     end;
 end;
 
 procedure TfrmMain.ViewerTaskToggle(Sender: TObject; const AText: string;
@@ -227,6 +287,115 @@ begin
   end;
 end;
 
+procedure TfrmMain.MenuItem8Click(Sender: TObject);
+begin
+  showmessage ('Version: ' + VERSION);
+end;
+
+{ ---- find bar ----
+
+  Everything here is host-side UI. The viewer does the matching, draws the
+  highlights and scrolls a hit into view; this bar just supplies the term, the
+  two options, and somewhere to show the count. }
+
+procedure TfrmMain.mnuFindClick(Sender: TObject);
+begin
+  ShowFindBar;
+end;
+
+procedure TfrmMain.ShowFindBar;
+var
+  Seed: string;
+begin
+  FindBar.Visible := True;
+  // Seed from the preview's selection, the way most editors do - but only a
+  // single line of it, since a multi-line selection is never a useful term.
+  if FViewer.HasSelection then
+  begin
+    Seed := Trim(FViewer.SelectedText(True));
+    if (Seed <> '') and (Pos(#10, Seed) = 0) and (Pos(#13, Seed) = 0) then
+      edtFind.Text := Seed;
+  end;
+  edtFind.SetFocus;
+  edtFind.SelectAll;
+  FViewer.SearchText := edtFind.Text;   // fires OnSearchChange -> the counter
+end;
+
+procedure TfrmMain.CloseFindBar;
+begin
+  // Drop the highlights with the bar, or the document stays marked up with a
+  // search the user can no longer see the term for.
+  FViewer.ClearSearch;
+  FindBar.Visible := False;
+end;
+
+procedure TfrmMain.btnFindCloseClick(Sender: TObject);
+begin
+  CloseFindBar;
+end;
+
+procedure TfrmMain.ViewerSearchChange(Sender: TObject);
+begin
+  if FViewer.SearchText = '' then
+    lblFindStatus.Text := ''
+  else if FViewer.SearchMatchCount = 0 then
+    lblFindStatus.Text := 'No matches'
+  else if FViewer.SearchMatchIndex < 0 then
+    lblFindStatus.Text := Format('%d matches', [FViewer.SearchMatchCount])
+  else
+    lblFindStatus.Text := Format('%d of %d',
+      [FViewer.SearchMatchIndex + 1, FViewer.SearchMatchCount]);
+end;
+
+procedure TfrmMain.edtFindChangeTracking(Sender: TObject);
+begin
+  FViewer.SearchText := edtFind.Text;
+  // Incremental jump. Assigning SearchText highlights but deliberately does
+  // not scroll, so stepping to a hit is the host's call to make; assignment
+  // also resets the current match, so this lands on the first hit at or below
+  // the viewport rather than walking forward on every keystroke.
+  if FViewer.SearchMatchCount > 0 then
+    FViewer.FindNext;
+end;
+
+procedure TfrmMain.edtFindKeyDown(Sender: TObject; var Key: Word;
+  var KeyChar: WideChar; Shift: TShiftState);
+begin
+  if Key = vkReturn then
+  begin
+    if ssShift in Shift then
+      FViewer.FindPrevious
+    else
+      FViewer.FindNext;
+    Key := 0;
+  end
+  else if Key = vkEscape then
+  begin
+    CloseFindBar;
+    Key := 0;
+  end;
+end;
+
+procedure TfrmMain.btnFindNextClick(Sender: TObject);
+begin
+  FViewer.FindNext;
+end;
+
+procedure TfrmMain.btnFindPrevClick(Sender: TObject);
+begin
+  FViewer.FindPrevious;
+end;
+
+procedure TfrmMain.FindOptionChange(Sender: TObject);
+begin
+  FViewer.SearchCaseSensitive := chkMatchCase.IsChecked;
+  FViewer.SearchWholeWords := chkWholeWord.IsChecked;
+  // Both setters reset the current match, so re-land on one rather than
+  // leaving the view parked where the old match used to be.
+  if FViewer.SearchMatchCount > 0 then
+    FViewer.FindNext;
+end;
+
 procedure TfrmMain.ViewerScroll(Sender: TObject);
 var
   ViewerMax, MemoMax, Frac: Single;
@@ -260,7 +429,7 @@ begin
     OpenDialog.Filter := 'Markdown Files (*.md)|*.md|All Files (*.*)|*.*';
     OpenDialog.InitialDir := GetCurrentDir; // Starts in the current directory
     OpenDialog.FilterIndex := 1;
-    OpenDialog.Options := [TOpenOption.ofFileMustExist];
+    OpenDialog.Options := [TOpenOption.ofOverwritePrompt];
 
     Result := '';
     // Show the dialog
