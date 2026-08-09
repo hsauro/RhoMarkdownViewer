@@ -104,6 +104,22 @@ the fence from the block's own opening line.
 Cases live in `Demo/sample.md`; `ParseBlocksLongFenceContainsBackticks` and
 friends cover the parse and the source map.
 
+🔴 **The strictness is a decision, not an oversight — do not soften it.** A
+```-fenced block whose content contains a bare ``` is *ambiguous by the spec*:
+the inner fence closes the block, the next one opens a new one, and that new
+block swallows the following prose. Every conformant renderer does the same —
+the user confirmed MarkText renders the reported document identically, and
+adding the fourth backtick fixes it there too. The author's fix is a ```` or
+`~~~` outer fence.
+
+Two lenient alternatives were considered and **rejected by the user
+(2026-08-09)**: letting an info-string-bearing fence close a block (limits the
+damage but still mis-renders), and treating a fence line immediately followed by
+another fence line as content (recovers the intent, but breaks back-to-back code
+blocks and diverges from every other renderer). The reason for rejecting both:
+a `.md` file must render the same here as it does on GitHub. Reaching for a
+heuristic here trades that away to paper over malformed input.
+
 **Container blocks — Phases A (quotes) and B (list items) done.**
 `TMarkDownBlock` has an owned `Children: TMarkDownBlockList`. A `bkQuote` is a
 pure container (content in `Children`, not `Text`); a `bkListItem` renders its
