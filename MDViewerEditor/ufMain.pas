@@ -38,6 +38,7 @@ type
     // Find bar. The viewer owns matching, highlighting and scrolling; this is
     // only the UI that drives it - see the find section of the component's
     // CLAUDE.md for why the split falls there.
+    btnSaveAs: TButton;
     FindBar: TLayout;
     lblFind: TLabel;
     edtFind: TEdit;
@@ -60,6 +61,7 @@ type
     procedure btnThemeClick(Sender: TObject);
     procedure btnUpdateClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
+    procedure btnSaveAsClick(Sender: TObject);
     procedure btnOpenClosePanelClick(Sender: TObject);
     procedure MenuItem8Click(Sender: TObject);
     procedure mnuFindClick(Sender: TObject);
@@ -77,8 +79,24 @@ type
     // otherwise fire straight back into the viewer.
     FSyncing: Boolean;
     FDark : Boolean;
+    // Path the document was last opened from or saved to, and the whole
+    // difference between Save and Save As: empty means "never been to disk", so
+    // Save has nothing to write over and has to ask, exactly as Save As does.
+    // Cleared by New, set by Open and by any successful save.
+    FCurrentFile: string;
     function SelectMDFileForOpening : string;
     function SelectMDFileForSaving : string;
+    // The one place a document is loaded from disk. There are four ways in -
+    // the Open button, a dropped file, a command-line argument and (indirectly)
+    // Save As - and when each did its own loading, only the Open button
+    // recorded the path, so Save still prompted after a drag-and-drop.
+    procedure OpenDocument(const AFileName: string);
+    // The one place the memo reaches disk. Both Save and Save As end here, so
+    // the file name label and FCurrentFile cannot drift out of step with what
+    // was actually written.
+    procedure WriteToFile(const AFileName: string);
+    // Prompts, then writes. Returns False if the user cancelled.
+    function SaveAs: Boolean;
     // Proportional two-way scroll sync between the editor (Memo1) and the
     // preview (RhoMarkdownViewer1). Positions map by fraction-of-scrollable
     // range, since the two have unrelated content heights.
@@ -132,6 +150,21 @@ procedure TfrmMain.btnNewClick(Sender: TObject);
 begin
    FViewer.MarkdownText := '';
    TextMemo.Lines.Clear;
+   // A new document has no file yet, so the next Save must ask. Leaving the old
+   // path here would quietly overwrite the previously open document.
+   FCurrentFile := '';
+   lblFileName.Text := '(untitled)';
+end;
+
+procedure TfrmMain.OpenDocument(const AFileName: string);
+begin
+  // LoadFromFile sets BasePath to the file's folder BEFORE parsing, so relative
+  // image paths in the document resolve. Assigning MarkdownText does not.
+  FViewer.LoadFromFile(AFileName);
+  TextMemo.Text := FViewer.MarkdownText;
+  lblFileName.Text := ExtractFileName(AFileName);
+  // Save now has somewhere to write to without asking.
+  FCurrentFile := AFileName;
 end;
 
 procedure TfrmMain.btnOpenClick(Sender: TObject);
@@ -140,11 +173,7 @@ begin
   FileName := SelectMDFileForOpening;
   if FileName = '' then
     Exit;
-  // LoadFromFile sets BasePath to the file's folder BEFORE parsing, so relative
-  // image paths in the document resolve. Assigning MarkdownText does not.
-  FViewer.LoadFromFile(FileName);
-  TextMemo.Text := FViewer.MarkdownText;
-  lblFileName.Text := ExtractFileName(FileName);
+  OpenDocument(FileName);
 end;
 
 procedure TfrmMain.btnOpenClosePanelClick(Sender: TObject);
@@ -161,14 +190,45 @@ begin
      end;
 end;
 
-procedure TfrmMain.btnSaveClick(Sender: TObject);
-var FileName: string;
+procedure TfrmMain.WriteToFile(const AFileName: string);
+begin
+  // UTF8WithoutBOM: markdown is conventionally BOM-less UTF-8, and the viewer's
+  // LoadFromFile reads that correctly. Writing plain TEncoding.UTF8 would emit a
+  // BOM; writing the ANSI default would mangle every non-ASCII character on the
+  // round trip, which is the same trap documented for reading.
+  TFile.WriteAllText(AFileName, TextMemo.Text, TEncoding.UTF8);
+  FCurrentFile := AFileName;
+  lblFileName.Text := ExtractFileName(AFileName);
+end;
+
+function TfrmMain.SaveAs: Boolean;
+var
+  FileName: string;
 begin
   FileName := SelectMDFileForSaving;
-  if FileName = '' then
-      Exit;
-  lblFileName.Text := ExtractFileName (FileName);
-  TFile.WriteAllText(FileName, TextMemo.Text);
+  Result := FileName <> '';
+  if not Result then
+    Exit;
+  // A typed name with no extension would otherwise save as an extensionless
+  // file that Open's *.md filter then hides.
+  if ExtractFileExt(FileName) = '' then
+    FileName := FileName + '.md';
+  WriteToFile(FileName);
+end;
+
+procedure TfrmMain.btnSaveClick(Sender: TObject);
+begin
+  // Save over the current file; with no current file there is nothing to save
+  // over, so fall through to Save As rather than silently doing nothing.
+  if FCurrentFile = '' then
+    SaveAs
+  else
+    WriteToFile(FCurrentFile);
+end;
+
+procedure TfrmMain.btnSaveAsClick(Sender: TObject);
+begin
+  SaveAs;
 end;
 
 procedure TfrmMain.btnThemeClick(Sender: TObject);
@@ -198,6 +258,10 @@ procedure TfrmMain.cboComboChange(Sender: TObject);
 begin
    TextMemo.Text := cboCombo.Selected.TagString;
    FViewer.MarkdownText := cboCombo.Selected.TagString;
+   // A built-in example is not a file on disk. Leaving the previous document's
+   // path here would make Save silently overwrite THAT file with the example.
+   FCurrentFile := '';
+   lblFileName.Text := cboCombo.Selected.Text;
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
@@ -233,10 +297,7 @@ begin
   if ParamCount > 0 then
      begin
      If FileExists (ParamStr (1)) then
-        begin
-        FViewer.LoadFromFile(ParamStr (1));
-        TextMemo.Text := FViewer.MarkdownText;
-        end;
+        OpenDocument(ParamStr (1));
      end;
 end;
 
@@ -425,11 +486,15 @@ begin
   OpenDialog := TOpenDialog.Create(nil);
   try
     // Configure dialog properties
-    OpenDialog.Title := 'Select a Markdown (.md) File';
+    OpenDialog.Title := 'Open a Markdown (.md) File';
     OpenDialog.Filter := 'Markdown Files (*.md)|*.md|All Files (*.*)|*.*';
     OpenDialog.InitialDir := GetCurrentDir; // Starts in the current directory
     OpenDialog.FilterIndex := 1;
-    OpenDialog.Options := [TOpenOption.ofOverwritePrompt];
+    // The two dialogs had these the wrong way round: the OPEN dialog carried
+    // ofOverwritePrompt (meaningless when opening) and the SAVE one carried
+    // ofFileMustExist, which refuses any name that is not already on disk - so
+    // saving to a new file was impossible.
+    OpenDialog.Options := [TOpenOption.ofFileMustExist];
 
     Result := '';
     // Show the dialog
@@ -452,11 +517,20 @@ begin
   SaveDialog := TSaveDialog.Create(nil);
   try
     // Configure dialog properties
-    SaveDialog.Title := 'Select a Markdown (.md) File';
+    SaveDialog.Title := 'Save Markdown (.md) File As';
     SaveDialog.Filter := 'Markdown Files (*.md)|*.md|All Files (*.*)|*.*';
-    SaveDialog.InitialDir := GetCurrentDir; // Starts in the current directory
     SaveDialog.FilterIndex := 1;
-    SaveDialog.Options := [TOpenOption.ofFileMustExist];
+    SaveDialog.DefaultExt := 'md';
+    // Start in the current document's folder, under its own name, so Save As on
+    // an open file is a rename rather than a hunt.
+    if FCurrentFile <> '' then
+    begin
+      SaveDialog.InitialDir := ExtractFilePath(FCurrentFile);
+      SaveDialog.FileName := ExtractFileName(FCurrentFile);
+    end
+    else
+      SaveDialog.InitialDir := GetCurrentDir;
+    SaveDialog.Options := [TOpenOption.ofOverwritePrompt];
 
     Result := '';
     // Show the dialog
@@ -475,10 +549,7 @@ procedure TfrmMain.FViewerDragDrop(Sender: TObject;
 begin
   // Loop through the file array provided by the OS
   if Length(Data.Files) > 0 then
-     begin
-     FViewer.LoadFromFile(Data.Files[0]);
-     TextMemo.Text := FViewer.MarkdownText;
-     end;
+     OpenDocument(Data.Files[0]);
 end;
 
 

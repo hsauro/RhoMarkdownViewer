@@ -34,14 +34,14 @@ object frmMain: TfrmMain
       OnChange = cboComboChange
     end
     object btnTheme: TButton
-      Position.X = 428.000000000000000000
+      Position.X = 524.000000000000000000
       Position.Y = 12.000000000000000000
       TabOrder = 5
       Text = 'Theme: Light'
       OnClick = btnThemeClick
     end
     object btnUpdate: TButton
-      Position.X = 337.000000000000000000
+      Position.X = 433.000000000000000000
       Position.Y = 11.000000000000000000
       TabOrder = 3
       Text = 'Update View'
@@ -71,8 +71,18 @@ object frmMain: TfrmMain
       Text = 'Save'
       OnClick = btnSaveClick
     end
+    object btnSaveAs: TButton
+      Position.X = 296.000000000000000000
+      Position.Y = 11.000000000000000000
+      Size.Width = 80.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 7
+      Text = 'Save As...'
+      OnClick = btnSaveAsClick
+    end
     object btnOpenClosePanel: TSpeedButton
-      Position.X = 576.000000000000000000
+      Position.X = 672.000000000000000000
       Position.Y = 11.000000000000000000
       Size.Width = 129.000000000000000000
       Size.Height = 22.000000000000000000
