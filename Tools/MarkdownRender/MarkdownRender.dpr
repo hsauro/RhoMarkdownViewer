@@ -4,7 +4,7 @@ program MarkdownRender;
   Renders a markdown file to a PNG through the real TRhoMarkdownViewer layout
   and paint path, with no window involved.
 
-    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|anchors|search <term>]
+    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|anchors|center|right|search <term>]
 
   Passing "links" as the fifth argument overlays a translucent marker wherever
   LinkAt reports a link, by probing the document on a grid. That verifies the
@@ -82,6 +82,15 @@ begin
     if SameText(ParamStr(5), 'dark') or SameText(ParamStr(6), 'dark') or
        SameText(ParamStr(7), 'dark') then
       Viewer.ApplyTheme(rtDark);
+    // 'center' / 'right' set the document-wide ImageAlign property, and compose
+    // with the other modes the same way 'dark' does. An <img align=..> in the
+    // document overrides them per image.
+    if SameText(ParamStr(5), 'center') or SameText(ParamStr(6), 'center') or
+       SameText(ParamStr(7), 'center') then
+      Viewer.ImageAlign := riaCenter
+    else if SameText(ParamStr(5), 'right') or SameText(ParamStr(6), 'right') or
+       SameText(ParamStr(7), 'right') then
+      Viewer.ImageAlign := riaRight;
     Viewer.LoadFromFile(InputFile);
 
     Height := Viewer.MeasureDocument(Width);

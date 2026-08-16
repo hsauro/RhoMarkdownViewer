@@ -30,8 +30,18 @@ const
   fsStrikeOut = System.UITypes.TFontStyle.fsStrikeOut;
 
 type
+  // bkAlignBlock is a pure container: an HTML <p align=..> / <div align=..>
+  // wrapper, holding its content in Children and contributing only an alignment.
+  // Like bkQuote it is NOT a leaf and must never reach the viewer's flat layout.
   TMarkDownBlockKind = (bkParagraph, bkHeading, bkQuote, bkListItem,
-    bkCodeBlock, bkRule, bkTable, bkImage, bkFrontMatter);
+    bkCodeBlock, bkRule, bkTable, bkImage, bkFrontMatter, bkAlignBlock);
+
+  // Horizontal alignment. maDefault means "not specified here" and defers to
+  // whatever encloses it (an alignment container) or, failing that, to the
+  // viewer's ImageAlign property -- the same sentinel convention
+  // TAlphaColors.Null uses for colours. Used both for an image (on a token) and
+  // for a block-HTML alignment container.
+  TMarkDownAlign = (maDefault, maLeft, maCenter, maRight);
 
   // An inline run carries combinable emphasis (Style) so spans can nest,
   // e.g. bold containing italic, or a link whose text is bold. IsCode marks a
@@ -62,6 +72,11 @@ type
     ImgWidthPct: Boolean;
     ImgHeight: Single;
     ImgHeightPct: Boolean;
+    // Horizontal placement requested by an HTML <img align=..>. maDefault means
+    // the attribute was absent, so the viewer's ImageAlign property decides --
+    // that sentinel is what lets a per-image attribute override a document-wide
+    // default, the same way TAlphaColors.Null works for colours.
+    ImgAlign: TMarkDownAlign;
     // Maps each character of Text to its 0-based document offset, with one
     // trailing entry for the position just past the last character (same shape
     // as TMarkDownBlock.SourceMap). Empty when the token was parsed without a
@@ -89,6 +104,8 @@ type
     Number: Integer;
     IsTask: Boolean;
     TaskChecked: Boolean;
+    // bkAlignBlock only: the alignment its children inherit.
+    Align: TMarkDownAlign;
     CodeLanguage: string;
     SourceStartLine: Integer;
     // Maps each character of Text back to its 0-based offset in the original

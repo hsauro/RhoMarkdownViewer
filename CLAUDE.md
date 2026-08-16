@@ -69,6 +69,7 @@ said as much. Tested empirically; the failing cases live in
 | **Multi-paragraph list item** | ✅ **fixed (Phase B)** — item holds child blocks |
 | **Code block inside a list item** | ✅ **fixed (Phase B)** — code nests under the item |
 | Inline HTML `<b>x</b>` | ✅ **whitelist** — formatting tags + `<img>`; rest literal |
+| Block HTML `<div align="center">` | ✅ **fixed 2026-08-16** — alignment containers only; other block HTML still literal |
 | **Fence length / `~~~` fences** | ✅ **fixed 2026-08-09** — see below |
 | Ordered list starting at N | ✅ works |
 | Link with title | ✅ works |
@@ -605,7 +606,7 @@ msbuild Packages\RhoMarkdownViewer.dproj /t:Build /p:Config=Debug /p:Platform=Wi
 
   ```
   msbuild Tools\MarkdownRender\MarkdownRender.dproj /t:Build /p:Config=Debug /p:Platform=Win64
-  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|anchors|search <term>]
+  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|anchors|center|right|search <term>]
   ```
 
   The optional fifth argument switches on a verification mode: `links` tints
@@ -940,6 +941,31 @@ layout that assignment triggers. `ResolveImagePath` strips a leading `/` (or
 (the way GitHub renders a README) finds the file relative to the document
 folder rather than the drive root.
 
+**Alignment.** Published `ImageAlign: TRhoImageAlign` (`riaLeft` default,
+`riaCenter`, `riaRight`) places images document-wide, and an HTML
+`<img align="center|left|right">` overrides it for that one image. The model
+carries the override as `TMarkDownImageAlign`, whose **`miaDefault` member means
+"not specified, follow the property"** — the same sentinel trick
+`TAlphaColors.Null` uses for colours, and the reason the published enum is a
+*separate* three-member type: `miaDefault` is meaningless in the Object
+Inspector.
+
+Two unrelated mechanisms, because block and inline images are positioned
+differently:
+
+- A **block image** (`bkImage`, i.e. `![alt](url)` alone on a line) has its
+  `ImageRect` offset inside the content width. Markdown gives it nowhere to put
+  an attribute, so it always follows the property.
+- An **inline image** is a placeholder in a paragraph, so it is placed by
+  aligning **the paragraph** (`BuildInline` picks the `TSkTextAlign`). ⚠️ That is
+  only meaningful when the image *is* the paragraph — centring a line of prose
+  because it contains an icon would be wrong. `TryLoneImageAlign` gates on
+  exactly one image token plus whitespace, and an `<img align>` mid-sentence is
+  deliberately ignored.
+
+`Demo/image-align.md` covers all of it; the render tool takes `center` / `right`
+as trailing flags (composable with `dark`, like the others) to set the property.
+
 **Inline images** (`![alt](url)` inside a paragraph) required parser and model
 work, not just viewer work: `ParseInline` had no image handling at all, so `!`
 came out as literal text and `[alt](url)` parsed as an ordinary link. The parser
@@ -986,6 +1012,51 @@ inside an attribute doesn't end the tag early, but an **unknown tag or an opener
 with no matching close is left literal** — never interpreted, never stripped.
 Block-level `<details>`/`<summary>` is a possible future addition (needs block
 parsing + an interactive collapse state) and is out of scope for now.
+
+### Block HTML: the `<p>` / `<div>` alignment container
+
+The **one** block-level HTML construct that is interpreted, added 2026-08-16 for
+GitHub compatibility: `<p align="center">…</p>` and `<div align="center">…</div>`
+(also `left` / `right`). This is the idiom a README uses to centre an image,
+since markdown has no syntax for it, and it is the portable alternative to the
+`<img align>` extension — the same file centres on GitHub.
+
+It is a **pure container**, structurally identical to a quote: `bkAlignBlock`
+holds its content in `Children` and contributes nothing but a `TMarkDownAlign`.
+`TryParseAlignContainer` strips the wrapper and `ParseBlocks` recurses
+(`MapSource=False`, like every container). Consuming the wrapper lines is also
+what stops them reaching `ParseRuns` and rendering as literal `<p align=…>`.
+
+🔴 **Only a *recognised* `align` attribute makes a container.** A bare `<div>`,
+or one with an align we don't understand, keeps the documented default of
+rendering literally. Without that gate this silently swallows arbitrary block
+HTML it cannot render. An **unterminated** wrapper is declined the same way.
+Both are guarded by tests.
+
+`ScanAlignLine` tracks nesting depth so an inner `</div>` doesn't close the outer
+container. It is a textual scan, so a `</div>` inside a fenced code block *within*
+the container would be miscounted — same pragmatism as the rest of the HTML
+handling, and it fails benignly (container ends early, leftovers go literal).
+
+⚠️ **Handle the one-line form.** `<p align="center"><img src="x.png"></p>` with
+open, content and close on a single line is what READMEs actually contain, and
+it's the case you miss if you only test the multi-line `<div>`.
+
+Alignment reaches the leaves as an `AAlign: TMarkDownAlign` threaded through
+`LayoutBlocks` → `LayoutBlock` → `BuildInline`, alongside the existing
+`AInQuote`. Text uses Skia's `TextAlign` (so `GetRectsForRange` and
+`GetGlyphPositionAtCoordinate` return already-shifted geometry and selection,
+search and hit-testing need no changes); a block image uses `ImageRect.Offset`.
+An enclosing container **wins over** the lone-image/`ImageAlign` path — it was
+written around the block deliberately.
+
+🔴 **`CountLeaves` and `LayoutBlocks` both encode "a container is not a leaf" and
+must agree.** Disagreement leaves a nil-`Block` slot in `FLayout` that crashes
+paint. `bkAlignBlock` joins `bkQuote` on that side of the test in both.
+
+`AsHtml` round-trips it as `<div align="…">` (`AlignAttr` in
+`uRhoMarkdownHtml.pas`, arms in **both** `EmitBlockList` and `EmitChildBlocks`).
+`Demo/block-align.md` is the corpus.
 
 ⚠️ **HTML *export* (`AsHtml`) still escapes these tags** — the whitelist is a
 *viewer/parser* feature (`ParseInline`); `EmitInline` in `uRhoMarkdownHtml.pas`

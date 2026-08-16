@@ -173,6 +173,11 @@ type
 
   TRhoTheme = (rtLight, rtDark);
 
+  // Document-wide horizontal placement for images. A single <img align=..>
+  // overrides this for itself; markdown's own ![alt](url) has nowhere to put an
+  // attribute, so this property is the only way to place those.
+  TRhoImageAlign = (riaLeft, riaCenter, riaRight);
+
   // Per-token-kind colours for fenced code blocks, published as an expandable
   // node in the Object Inspector.
   //
@@ -267,6 +272,7 @@ type
     FCodeFontFamily: string;
     FFontSize: Single;
     FContentPadding: Single;
+    FImageAlign: TRhoImageAlign;
     FBasePath: string;
     FHoveredLink: string;
     FPressedLink: string;
@@ -340,6 +346,15 @@ type
     procedure SetCodeFontFamily(const AValue: string);
     procedure SetFontSize(const AValue: Single);
     procedure SetContentPadding(const AValue: Single);
+    procedure SetImageAlign(const AValue: TRhoImageAlign);
+    // Folds a token/block override together with the ImageAlign property, and
+    // turns the result into a left offset inside AContentWidth.
+    function ResolveImageAlign(
+      const AOverride: TMarkDownAlign): TRhoImageAlign;
+    function ImageOffsetFor(const AAlign: TRhoImageAlign;
+      const AImageWidth, AContentWidth: Single): Single;
+    function TryLoneImageAlign(ATokens: TMarkDownInlineList;
+      out AAlign: TRhoImageAlign): Boolean;
 
     procedure Reparse;
     function InlineTokensFor(ABlock: TMarkDownBlock): TMarkDownInlineList;
@@ -358,8 +373,12 @@ type
       const AAlign: TSkTextAlign; out ASpans: TArray<TRhoLinkSpan>;
       out APlainText: string; out ACharSource: TArray<Integer>;
       out APlaceholders: TArray<TRhoPlaceholder>): ISkParagraph;
+    // AAlign is the alignment inherited from an enclosing <p>/<div align=..>
+    // container; maDefault means "none", which leaves the existing behaviour
+    // (left, except for a paragraph that is nothing but one image).
     function BuildInline(ABlock: TMarkDownBlock; const AWidth, ASize: Single;
-      const ABold, AItalic: Boolean; out ASpans: TArray<TRhoLinkSpan>;
+      const ABold, AItalic: Boolean; const AAlign: TMarkDownAlign;
+      out ASpans: TArray<TRhoLinkSpan>;
       var ALayout: TRhoBlockLayout): ISkParagraph;
     function BuildCellText(const AText: string; const AWidth: Single;
       const ABold: Boolean; const AAlign: TSkTextAlign;
@@ -468,7 +487,8 @@ type
     function HeadingSize(ALevel: Integer): Single;
     procedure LayoutBlock(ABlock: TMarkDownBlock; const AContentLeft,
       AContentWidth: Single; var ALayout: TRhoBlockLayout;
-      const AInQuote: Boolean = False);
+      const AInQuote: Boolean = False;
+      const AAlign: TMarkDownAlign = maDefault);
     // Counts the leaf (non-container) blocks in a tree, so EnsureLayout can size
     // the flat display list once before filling it.
     function CountLeaves(ABlocks: TMarkDownBlockList): Integer;
@@ -477,6 +497,7 @@ type
     // with each nesting level; a quote also records a bar span in FQuoteBars.
     procedure LayoutBlocks(ABlocks: TMarkDownBlockList;
       const AContentLeft, AContentWidth: Single; const AInQuote: Boolean;
+      const AAlign: TMarkDownAlign;
       const AGap: Single; var AIndex: Integer; var AY: Single);
     procedure EnsureLayout(const AWidth: Single);
 
@@ -667,6 +688,10 @@ type
     // Single, so no `default` either.
     property FontSize: Single read FFontSize write SetFontSize;
     property ContentPadding: Single read FContentPadding write SetContentPadding;
+    // Where images sit in the content width. Applies to markdown ![alt](url)
+    // images and to any <img> that does not carry its own align attribute.
+    property ImageAlign: TRhoImageAlign read FImageAlign write SetImageAlign
+      default riaLeft;
     // Folder that relative image paths resolve against. LoadFromFile sets this
     // to the markdown file's own folder, so images "just work" for a loaded doc.
     property BasePath: string read FBasePath write SetBasePath;
@@ -921,11 +946,16 @@ const
   // same way. Scaled by FontSize where it should track text size.
   ListIndentPerLevel = 16;   // per nesting level
   ListTextIndent     = 22;   // marker gutter width
+  ListMarkerGap      = 4;    // minimum space between an ordered marker and text
   QuoteBarWidth      = 4;
   QuoteTextIndent    = 13;
   CodePadding        = 8;
   RuleThickness      = 1;
-  CheckBoxSize       = 15;
+  CheckBoxSize       = 13;   // task checkbox; see TaskBoxGap
+  // A checkbox needs more clearance than a number does. Its stroked border is
+  // hard ink right at the box edge, where a glyph carries side bearing inside
+  // its advance -- so an identical numeric gap reads much tighter for the box.
+  TaskBoxGap         = 6;
   TableCellPadH      = 8;
   TableCellPadV      = 4;
   CodeButtonInset    = 6;
@@ -968,6 +998,7 @@ begin
   FCodeFontFamily := DefaultCodeFontFamily;
   FFontSize := 14;
   FContentPadding := 12;
+  FImageAlign := riaLeft;
 
   FMarkdown := TStringList.Create;
   TStringList(FMarkdown).OnChange := MarkdownChanged;
@@ -1290,6 +1321,74 @@ begin
     Exit;
   FContentPadding := AValue;
   InvalidateLayout;
+end;
+
+procedure TRhoMarkdownViewer.SetImageAlign(const AValue: TRhoImageAlign);
+begin
+  if FImageAlign = AValue then
+    Exit;
+  FImageAlign := AValue;
+  // Placement is baked into the display list (a block image's ImageRect, an
+  // inline one's paragraph alignment), so this is a re-layout, not a repaint.
+  InvalidateLayout;
+end;
+
+function TRhoMarkdownViewer.ResolveImageAlign(
+  const AOverride: TMarkDownAlign): TRhoImageAlign;
+begin
+  case AOverride of
+    maLeft:   Result := riaLeft;
+    maCenter: Result := riaCenter;
+    maRight:  Result := riaRight;
+  else
+    // maDefault: nothing was specified on the image itself, so the
+    // document-wide property decides.
+    Result := FImageAlign;
+  end;
+end;
+
+function TRhoMarkdownViewer.ImageOffsetFor(const AAlign: TRhoImageAlign;
+  const AImageWidth, AContentWidth: Single): Single;
+begin
+  case AAlign of
+    riaCenter: Result := Max(0, (AContentWidth - AImageWidth) / 2);
+    riaRight:  Result := Max(0, AContentWidth - AImageWidth);
+  else
+    Result := 0;
+  end;
+end;
+
+// An inline image is placed by aligning the whole paragraph, which is only
+// meaningful when the image IS the paragraph -- centring a line of prose because
+// it happens to contain an icon would be wrong. So this reports True only for a
+// block whose sole content is one image, plus whitespace.
+function TRhoMarkdownViewer.TryLoneImageAlign(ATokens: TMarkDownInlineList;
+  out AAlign: TRhoImageAlign): Boolean;
+var
+  I, Images: Integer;
+  Found: TMarkDownInlineToken;
+begin
+  Result := False;
+  AAlign := riaLeft;
+  if (ATokens = nil) or (ATokens.Count = 0) then
+    Exit;
+
+  Images := 0;
+  for I := 0 to ATokens.Count - 1 do
+    if ATokens[I].IsImage then
+    begin
+      Inc(Images);
+      if Images > 1 then
+        Exit;
+      Found := ATokens[I];
+    end
+    else if ATokens[I].LineBreak or (Trim(ATokens[I].Text) <> '') then
+      Exit;
+
+  if Images <> 1 then
+    Exit;
+  AAlign := ResolveImageAlign(Found.ImgAlign);
+  Result := True;
 end;
 
 { ---- text styles ---- }
@@ -1669,13 +1768,37 @@ end;
 
 function TRhoMarkdownViewer.BuildInline(ABlock: TMarkDownBlock;
   const AWidth, ASize: Single; const ABold, AItalic: Boolean;
+  const AAlign: TMarkDownAlign;
   out ASpans: TArray<TRhoLinkSpan>; var ALayout: TRhoBlockLayout): ISkParagraph;
 var
   Boxes: TArray<TSkTextBox>;
   I: Integer;
+  Tokens: TMarkDownInlineList;
+  ImgAlign: TRhoImageAlign;
+  Align: TSkTextAlign;
 begin
-  Result := BuildTokens(InlineTokensFor(ABlock), ABlock.Text, AWidth, ASize,
-    ABold, AItalic, TSkTextAlign.Left, ASpans, ALayout.PlainText,
+  Tokens := InlineTokensFor(ABlock);
+
+  // An enclosing <p>/<div align=..> wins: it was written around this block
+  // deliberately, and it aligns text as well as images. Failing that, a
+  // paragraph that is nothing but one image is placed by aligning the paragraph
+  // itself; Skia then positions the placeholder, and paint reads the rect back
+  // as usual.
+  Align := TSkTextAlign.Left;
+  case AAlign of
+    maCenter: Align := TSkTextAlign.Center;
+    maRight:  Align := TSkTextAlign.Right;
+    maLeft:   Align := TSkTextAlign.Left;
+  else
+    if TryLoneImageAlign(Tokens, ImgAlign) then
+      case ImgAlign of
+        riaCenter: Align := TSkTextAlign.Center;
+        riaRight:  Align := TSkTextAlign.Right;
+      end;
+  end;
+
+  Result := BuildTokens(Tokens, ABlock.Text, AWidth, ASize,
+    ABold, AItalic, Align, ASpans, ALayout.PlainText,
     ALayout.CharSource, ALayout.Placeholders);
 
   // Skia decides where the placeholders ended up; read the rects back in the
@@ -2210,7 +2333,7 @@ end;
 
 procedure TRhoMarkdownViewer.LayoutBlock(ABlock: TMarkDownBlock;
   const AContentLeft, AContentWidth: Single; var ALayout: TRhoBlockLayout;
-  const AInQuote: Boolean);
+  const AInQuote: Boolean; const AAlign: TMarkDownAlign);
 var
   Indent, Avail, Size, Scale: Single;
   MarkerText: string;
@@ -2247,7 +2370,7 @@ begin
     bkQuote:
       begin
         ALayout.TextLeft := AContentLeft + QuoteTextIndent;
-        ALayout.Paragraph := BuildInline(ABlock, Max(1, AContentWidth - QuoteTextIndent), FFontSize, False, True, Spans, ALayout);
+        ALayout.Paragraph := BuildInline(ABlock, Max(1, AContentWidth - QuoteTextIndent), FFontSize, False, True, AAlign, Spans, ALayout);
         ALayout.Height := ALayout.Paragraph.Height;
         CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0,
           ALayout.Links);
@@ -2260,7 +2383,7 @@ begin
         ALayout.BoxLeft := AContentLeft + Indent;
         ALayout.TextLeft := AContentLeft + Indent + ListTextIndent;
         Avail := Max(1, AContentWidth - Indent - ListTextIndent);
-        ALayout.Paragraph := BuildInline(ABlock, Avail, FFontSize, False, False, Spans, ALayout);
+        ALayout.Paragraph := BuildInline(ABlock, Avail, FFontSize, False, False, AAlign, Spans, ALayout);
         ALayout.Height := ALayout.Paragraph.Height;
         CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0,
           ALayout.Links);
@@ -2277,9 +2400,19 @@ begin
             MarkerText := #$25CF;   // bullet
           ALayout.CopyPrefix := ALayout.CopyPrefix + MarkerText + ' ';
           ALayout.Marker := BuildMarker(MarkerText, FFontSize);
-          // Centre the marker in its gutter.
-          ALayout.MarkerLeft := ALayout.BoxLeft +
-            Max(0, (ListTextIndent - ALayout.Marker.LongestLine) / 2);
+          if ABlock.Ordered then
+            // Right-align the number against the text column, keeping a gap.
+            // Centring it worked only while the marker was narrower than the
+            // gutter: at two digits '10.' filled the gutter and butted straight
+            // against the text. Right-aligning also lines the periods up, and
+            // lets a wide number (100.) spill left the way a browser does.
+            ALayout.MarkerLeft := Max(0,
+              ALayout.TextLeft - ListMarkerGap - ALayout.Marker.LongestLine)
+          else
+            // A bullet is a fixed narrow glyph; centring it in the gutter is
+            // right and matches the rendering already verified.
+            ALayout.MarkerLeft := ALayout.BoxLeft +
+              Max(0, (ListTextIndent - ALayout.Marker.LongestLine) / 2);
         end
         else
         begin
@@ -2288,8 +2421,11 @@ begin
             ALayout.CopyPrefix := ALayout.CopyPrefix + '[x] '
           else
             ALayout.CopyPrefix := ALayout.CopyPrefix + '[ ] ';
-          ALayout.MarkerLeft := ALayout.BoxLeft +
-            Max(0, (ListTextIndent - CheckBoxSize) / 2);
+          // Right-aligned against the text column like an ordered marker, so
+          // the clearance is a fixed quantity rather than whatever centring
+          // happens to leave over.
+          ALayout.MarkerLeft := Max(ALayout.BoxLeft,
+            ALayout.TextLeft - TaskBoxGap - CheckBoxSize);
         end;
         Exit;
       end;
@@ -2297,7 +2433,7 @@ begin
     bkHeading:
       begin
         Size := HeadingSize(ABlock.Level);
-        ALayout.Paragraph := BuildInline(ABlock, AContentWidth, Size, True, False, Spans, ALayout);
+        ALayout.Paragraph := BuildInline(ABlock, AContentWidth, Size, True, False, AAlign, Spans, ALayout);
         ALayout.Height := ALayout.Paragraph.Height;
         CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0,
           ALayout.Links);
@@ -2314,7 +2450,7 @@ begin
         // rather than vanishing.
         if Length(ALayout.Rows) = 0 then
         begin
-          ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, False, Spans, ALayout);
+          ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, False, AAlign, Spans, ALayout);
           ALayout.Height := ALayout.Paragraph.Height;
           CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0,
             ALayout.Links);
@@ -2335,7 +2471,7 @@ begin
         begin
           // Missing, unreadable, or remote: fall back to the alt text so the
           // reader sees something rather than a blank gap.
-          ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, True, Spans, ALayout);
+          ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, True, AAlign, Spans, ALayout);
           ALayout.Height := ALayout.Paragraph.Height;
           Exit;
         end;
@@ -2346,6 +2482,14 @@ begin
           Scale := AContentWidth / ALayout.Image.Width;
         ALayout.ImageRect := RectF(0, 0,
           ALayout.Image.Width * Scale, ALayout.Image.Height * Scale);
+        // Markdown gives a block image nowhere to carry an attribute, so its
+        // placement comes from an enclosing <p>/<div align=..> if there is one,
+        // and otherwise from the ImageAlign property (that is what maDefault
+        // resolves to). Paint offsets ImageRect by BoxLeft, so shifting it here
+        // is the whole change.
+        ALayout.ImageRect.Offset(
+          ImageOffsetFor(ResolveImageAlign(AAlign),
+            ALayout.ImageRect.Width, AContentWidth), 0);
         ALayout.Height := ALayout.ImageRect.Height;
         Exit;
       end;
@@ -2353,7 +2497,7 @@ begin
 
   // bkParagraph and anything else. Paragraphs inside a quote render italic, the
   // way the quote's single text block did before quotes became containers.
-  ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, AInQuote, Spans, ALayout);
+  ALayout.Paragraph := BuildInline(ABlock, AContentWidth, FFontSize, False, AInQuote, AAlign, Spans, ALayout);
   ALayout.Height := ALayout.Paragraph.Height;
   CollectLinkRects(ALayout.Paragraph, Spans, ALayout.TextLeft, 0, ALayout.Links);
 end;
@@ -2364,11 +2508,12 @@ var
 begin
   Result := 0;
   for I := 0 to ABlocks.Count - 1 do
-    if ABlocks[I].Kind = bkQuote then
+    if ABlocks[I].Kind in [bkQuote, bkAlignBlock] then
     begin
-      // A quote is a pure container - not itself a leaf, only its descendants
-      // are. Counting it as one would leave a stale, nil-Block slot in FLayout
-      // that paint walks.
+      // A quote and an alignment container are pure containers - not themselves
+      // leaves, only their descendants are. Counting one as a leaf would leave a
+      // stale, nil-Block slot in FLayout that paint walks.
+      // 🔴 This rule is encoded HERE and in LayoutBlocks; the two must agree.
       if ABlocks[I].Children <> nil then
         Inc(Result, CountLeaves(ABlocks[I].Children));
     end
@@ -2384,6 +2529,7 @@ end;
 
 procedure TRhoMarkdownViewer.LayoutBlocks(ABlocks: TMarkDownBlockList;
   const AContentLeft, AContentWidth: Single; const AInQuote: Boolean;
+  const AAlign: TMarkDownAlign;
   const AGap: Single; var AIndex: Integer; var AY: Single);
 var
   I: Integer;
@@ -2394,14 +2540,24 @@ begin
   for I := 0 to ABlocks.Count - 1 do
   begin
     Block := ABlocks[I];
-    if Block.Kind = bkQuote then
+    if Block.Kind = bkAlignBlock then
+    begin
+      // A pure container that contributes no geometry of its own: same left and
+      // width, no chrome, no leaf in FLayout - it only hands an alignment down.
+      // 🔴 Adding a leaf here would desynchronise it from CountLeaves.
+      if Block.Children <> nil then
+        LayoutBlocks(Block.Children, AContentLeft, AContentWidth, AInQuote,
+          Block.Align, AGap, AIndex, AY);
+    end
+    else if Block.Kind = bkQuote then
     begin
       // Lay the children out indented; the bar spans their vertical extent.
       Bar.Left := AContentLeft;
       Bar.Top := AY;
       if Block.Children <> nil then
         LayoutBlocks(Block.Children, AContentLeft + QuoteTextIndent,
-          Max(1, AContentWidth - QuoteTextIndent), True, AGap, AIndex, AY);
+          Max(1, AContentWidth - QuoteTextIndent), True, AAlign, AGap,
+          AIndex, AY);
       // Exclude the trailing gap the last child added, so the bar ends at the
       // content, not in the gap before the next block.
       Bar.Bottom := Max(Bar.Top, AY - AGap);
@@ -2409,7 +2565,8 @@ begin
     end
     else
     begin
-      LayoutBlock(Block, AContentLeft, AContentWidth, FLayout[AIndex], AInQuote);
+      LayoutBlock(Block, AContentLeft, AContentWidth, FLayout[AIndex], AInQuote,
+        AAlign);
       FLayout[AIndex].Top := AY;
       if Block.Kind = bkCodeBlock then
         FLayout[AIndex].TextTop := AY + CodePadding
@@ -2422,7 +2579,7 @@ begin
       Inc(AIndex);
       if Block.Children <> nil then
         LayoutBlocks(Block.Children, ChildLeft,
-          Max(1, AContentWidth - (ChildLeft - AContentLeft)), AInQuote,
+          Max(1, AContentWidth - (ChildLeft - AContentLeft)), AInQuote, AAlign,
           AGap, AIndex, AY);
     end;
   end;
@@ -2444,7 +2601,7 @@ begin
   Y := FContentPadding;
   Idx := 0;
 
-  LayoutBlocks(FBlocks, FContentPadding, AWidth, False, Gap, Idx, Y);
+  LayoutBlocks(FBlocks, FContentPadding, AWidth, False, maDefault, Gap, Idx, Y);
 
   if Length(FLayout) > 0 then
     FContentHeight := Y - Gap + FContentPadding

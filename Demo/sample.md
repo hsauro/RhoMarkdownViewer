@@ -36,6 +36,15 @@ Escaped punctuation stays literal: \*not italic\* and \[not a link\]
 2. Ordered two
 3. Ordered three
 
+Markers wider than the gutter must still keep a gap before the text, and every
+period should line up:
+
+8. Single digit
+9. Single digit
+10. Two digits — this butted straight against the text before the fix
+11. Two digits
+100. Three digits spill left of the gutter, as a browser does
+
 - [x] Completed task
 - [ ] Outstanding task
 - [x] Another done one

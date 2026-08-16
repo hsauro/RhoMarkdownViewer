@@ -104,6 +104,20 @@ type
     [Test]
     procedure ParseInlineParsesHtmlImageWithSize;
     [Test]
+    procedure ParseInlineParsesHtmlImageAlign;
+    [Test]
+    procedure ParseBlocksParsesAlignContainerOneLine;
+    [Test]
+    procedure ParseBlocksParsesAlignContainerMultiLine;
+    [Test]
+    procedure ParseBlocksBareDivIsNotAContainer;
+    [Test]
+    procedure ParseBlocksUnclosedAlignContainerStaysLiteral;
+    [Test]
+    procedure ParseBlocksAlignContainerNests;
+    [Test]
+    procedure ParseInlineImageAlignDefaultsToUnset;
+    [Test]
     procedure ParseInlineParsesInlineLink;
     [Test]
     procedure ParseInlineStripsLinkTitle;
@@ -866,6 +880,150 @@ begin
   end;
 end;
 
+// The GitHub spelling: open tag, content and close tag all on ONE line. This is
+// the form READMEs actually use, and the easy one to miss when only the
+// multi-line <div> case is tested.
+procedure TMarkDownParserTests.ParseBlocksParsesAlignContainerOneLine;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<p align="center"><img src="a.png"></p>');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkAlignBlock);
+    Assert.AreEqual<TMarkDownAlign>(maCenter, Blocks[0].Align);
+    Assert.IsNotNull(Blocks[0].Children);
+    Assert.AreEqual<Integer>(1, Blocks[0].Children.Count);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksParsesAlignContainerMultiLine;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<div align="right">');
+    Lines.Add('');
+    Lines.Add('# Heading');
+    Lines.Add('');
+    Lines.Add('Some text.');
+    Lines.Add('');
+    Lines.Add('</div>');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkAlignBlock);
+    Assert.AreEqual<TMarkDownAlign>(maRight, Blocks[0].Align);
+    // The container holds real blocks, parsed recursively.
+    Assert.AreEqual<Integer>(2, Blocks[0].Children.Count);
+    Assert.IsTrue(Blocks[0].Children[0].Kind = bkHeading);
+    Assert.IsTrue(Blocks[0].Children[1].Kind = bkParagraph);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// 🔴 Only a RECOGNISED align attribute makes a container. A bare <div>, or one
+// with an align we do not understand, must keep the documented default of
+// rendering literally - otherwise this quietly swallows block HTML.
+procedure TMarkDownParserTests.ParseBlocksBareDivIsNotAContainer;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<div>');
+    Lines.Add('literal');
+    Lines.Add('</div>');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkParagraph);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<div align="sideways">x</div>');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkParagraph);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// An unterminated wrapper is declined and left literal, the same way an
+// unclosed inline tag is.
+procedure TMarkDownParserTests.ParseBlocksUnclosedAlignContainerStaysLiteral;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<div align="center">');
+    Lines.Add('never closed');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.IsTrue(Blocks.Count >= 1);
+    Assert.IsFalse(Blocks[0].Kind = bkAlignBlock);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// A same-name nested container must not be closed by the inner </div>.
+procedure TMarkDownParserTests.ParseBlocksAlignContainerNests;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('<div align="center">');
+    Lines.Add('');
+    Lines.Add('<div align="right">');
+    Lines.Add('');
+    Lines.Add('inner');
+    Lines.Add('');
+    Lines.Add('</div>');
+    Lines.Add('');
+    Lines.Add('outer');
+    Lines.Add('');
+    Lines.Add('</div>');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.AreEqual<TMarkDownAlign>(maCenter, Blocks[0].Align);
+    // Inner container plus the 'outer' paragraph - the inner </div> must not
+    // have closed the outer one.
+    Assert.AreEqual<Integer>(2, Blocks[0].Children.Count);
+    Assert.IsTrue(Blocks[0].Children[0].Kind = bkAlignBlock);
+    Assert.AreEqual<TMarkDownAlign>(maRight, Blocks[0].Children[0].Align);
+    Assert.IsTrue(Blocks[0].Children[1].Kind = bkParagraph);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
 procedure TMarkDownParserTests.ParseBlocksHonorsStartLine;
 var
   Blocks: TMarkDownBlockList;
@@ -1172,6 +1330,58 @@ begin
     Assert.AreEqual('Ir', Tokens[0].Text);
     Assert.IsTrue(Tokens[0].ImgWidthPct);
     Assert.AreEqual(Single(0.8), Tokens[0].ImgWidth, Single(0.001));
+  finally
+    Tokens.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseInlineParsesHtmlImageAlign;
+var
+  Tokens: TMarkDownInlineList;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline(
+    '<img src="a.png" align="center">');
+  try
+    Assert.AreEqual<Integer>(1, Tokens.Count);
+    Assert.IsTrue(Tokens[0].IsImage);
+    Assert.AreEqual<TMarkDownAlign>(maCenter, Tokens[0].ImgAlign);
+  finally
+    Tokens.Free;
+  end;
+
+  Tokens := TMarkDownBlockParser.ParseInline('<img src="a.png" align="RIGHT">');
+  try
+    Assert.AreEqual<TMarkDownAlign>(maRight, Tokens[0].ImgAlign);
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// No attribute, or one that is not a placement, must stay maDefault - that is
+// the sentinel the viewer's ImageAlign property fills in.
+procedure TMarkDownParserTests.ParseInlineImageAlignDefaultsToUnset;
+var
+  Tokens: TMarkDownInlineList;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline('<img src="a.png">');
+  try
+    Assert.AreEqual<TMarkDownAlign>(maDefault, Tokens[0].ImgAlign);
+  finally
+    Tokens.Free;
+  end;
+
+  Tokens := TMarkDownBlockParser.ParseInline('<img src="a.png" align="wat">');
+  try
+    Assert.AreEqual<TMarkDownAlign>(maDefault, Tokens[0].ImgAlign);
+  finally
+    Tokens.Free;
+  end;
+
+  // A markdown image carries no attributes at all.
+  Tokens := TMarkDownBlockParser.ParseInline('![alt](a.png)');
+  try
+    Assert.IsTrue(Tokens[0].IsImage);
+    Assert.AreEqual<TMarkDownAlign>(maDefault, Tokens[0].ImgAlign);
   finally
     Tokens.Free;
   end;

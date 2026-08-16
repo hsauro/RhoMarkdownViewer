@@ -56,6 +56,19 @@ begin
     Result := '<a href="' + HtmlEscape(Token.Url) + '">' + Result + '</a>';
 end;
 
+// The align attribute value for an alignment container. maDefault cannot occur
+// (the parser only builds a container for a recognised alignment) but maps to
+// "left" so the emitted HTML is always valid.
+function AlignAttr(const AAlign: TMarkDownAlign): string;
+begin
+  case AAlign of
+    maCenter: Result := 'center';
+    maRight:  Result := 'right';
+  else
+    Result := 'left';
+  end;
+end;
+
 function EmitInline(const Text: string; References: TStrings): string;
 var
   Tokens: TMarkDownInlineList;
@@ -241,6 +254,13 @@ var
               EmitChildBlocks(C.Children);
             Builder.Append('</blockquote>'#10);
           end;
+        bkAlignBlock:
+          begin
+            Builder.Append('<div align="' + AlignAttr(C.Align) + '">'#10);
+            if C.Children <> nil then
+              EmitChildBlocks(C.Children);
+            Builder.Append('</div>'#10);
+          end;
         bkImage:
           Builder.Append('<p><img src="' + HtmlEscape(C.Url) +
             '" alt="' + HtmlEscape(C.Text) + '" /></p>'#10);
@@ -278,6 +298,15 @@ var
               EmitBlockList(B.Children);
             CloseAllLists;   // close any list opened inside the quote
             Builder.Append('</blockquote>'#10);
+          end;
+        bkAlignBlock:
+          begin
+            // Round-trips as the GitHub-compatible spelling it was parsed from.
+            Builder.Append('<div align="' + AlignAttr(B.Align) + '">'#10);
+            if B.Children <> nil then
+              EmitBlockList(B.Children);
+            CloseAllLists;   // close any list opened inside the container
+            Builder.Append('</div>'#10);
           end;
         bkListItem:
           begin

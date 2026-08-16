@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<test-results name="D:\Documents\Embarcadero\Studio\Projects\fmx\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="173" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-08-09" time="12:10:39">
+<test-results name="D:\Documents\Embarcadero\Studio\Projects\FMX\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="180" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-08-16" time="15:41:18">
   <culture-info current-culture="en" current-uiculture="en" />
-  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="12:10:39" asserts="0">
+  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="15:41:18" asserts="0">
     <results>
-        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.013" asserts="0" >
+        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.012" asserts="0" >
           <results>
-              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.013" asserts="0" >
+              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.012" asserts="0" >
                 <results>
-                    <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.012" >
+                    <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.010" >
                       <results>
                         <test-case name="TestDelphiKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDelphiComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -62,7 +62,7 @@
                         <test-case name="TestDfmPropertyValues" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDfmCharConstants" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDelphiSourceFileAliases" executed="True" result="Success" success="True" time="0.000" asserts="0" />
-                        <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.009" asserts="0" />
+                        <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.007" asserts="0" />
                         <test-case name="TestTokenStreamInvariantsAdversarialInput" executed="True" result="Success" success="True" time="0.003" asserts="0" />
                         <test-case name="TestLaTeXHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestPowerShellHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -147,6 +147,13 @@
                         <test-case name="ParseInlineLeavesUnknownTagLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseInlineLeavesUnclosedTagLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseInlineParsesHtmlImageWithSize" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineParsesHtmlImageAlign" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesAlignContainerOneLine" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksParsesAlignContainerMultiLine" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksBareDivIsNotAContainer" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksUnclosedAlignContainerStaysLiteral" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseBlocksAlignContainerNests" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="ParseInlineImageAlignDefaultsToUnset" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseInlineParsesInlineLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseInlineStripsLinkTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseInlineResolvesReferenceLink" executed="True" result="Success" success="True" time="0.000" asserts="0" />

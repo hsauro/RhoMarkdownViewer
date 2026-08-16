@@ -75,6 +75,15 @@ uses
   System.SysUtils,
   System.UITypes;
 
+// The inline HTML helpers live further down, next to ParseRuns which is their
+// main consumer; ParseBlocks needs them too, for the <p>/<div> alignment
+// container, and is declared above them.
+function TryParseOpenTag(const Text: string; AStart: Integer;
+  out AName, AAttrs: string; out AAfter: Integer;
+  out ASelfClose: Boolean): Boolean; forward;
+function GetHtmlAttr(const Attrs, AName: string): string; forward;
+function ParseAlignAttr(const AValue: string): TMarkDownAlign; forward;
+
 class function TMarkDownBlockParser.TrimLeftOnly(const S: string): string;
 var
   I: Integer;
@@ -515,6 +524,119 @@ begin
   Result.SourceStartLine := SourceStartLine;
 end;
 
+// Walks one line of an alignment container looking for the '</name>' that
+// brings ADepth back to zero, tracking nested same-name opens on the way. When
+// it finds it, AContent is the part of the line before the closing tag.
+//
+// The scan is textual, so a '</div>' inside a fenced code block within the
+// container would be miscounted. That is the same pragmatism the rest of the
+// inline HTML handling uses, and the failure mode is benign: the container ends
+// early and the leftovers render literally.
+function ScanAlignLine(const S, AName: string; var ADepth: Integer;
+  out AContent: string): Boolean;
+var
+  P, After: Integer;
+  Needle: string;
+  TagName, TagAttrs: string;
+  SelfClose: Boolean;
+begin
+  Result := False;
+  AContent := S;
+  Needle := '</' + AName;
+  P := 1;
+  while P <= Length(S) do
+  begin
+    if S[P] = '<' then
+    begin
+      if LowerCase(Copy(S, P, Length(Needle))) = Needle then
+      begin
+        After := P + Length(Needle);
+        while (After <= Length(S)) and CharInSet(S[After], [' ', #9]) do
+          Inc(After);
+        if (After <= Length(S)) and (S[After] = '>') then
+        begin
+          Dec(ADepth);
+          if ADepth <= 0 then
+          begin
+            AContent := Copy(S, 1, P - 1);
+            Exit(True);
+          end;
+          P := After + 1;
+          Continue;
+        end;
+      end
+      else if TryParseOpenTag(S, P, TagName, TagAttrs, After, SelfClose) and
+        (TagName = AName) and not SelfClose then
+      begin
+        Inc(ADepth);
+        P := After;
+        Continue;
+      end;
+    end;
+    Inc(P);
+  end;
+end;
+
+// A GitHub-style alignment wrapper - <p align="center">...</p> or
+// <div align="center">...</div> - the idiom a README uses to centre an image,
+// since markdown itself has no syntax for it.
+//
+// 🔴 Only a <p>/<div> carrying a RECOGNISED align attribute becomes a
+// container. A bare <div> keeps the documented default of rendering literally,
+// so this cannot silently swallow block HTML it does not understand. An
+// unterminated wrapper is likewise declined and left literal, matching
+// TryParseOpenTag's rule for an unclosed inline tag.
+//
+// Handles the one-line form (open, content and close on a single line) as well
+// as the multi-line one; the single-line spelling is what GitHub READMEs
+// actually use, and it is the easy case to miss.
+function TryParseAlignContainer(Lines: TStrings; AStart: Integer;
+  out AAlign: TMarkDownAlign; AContent: TStrings;
+  out ALastLine: Integer): Boolean;
+var
+  T, TagName, TagAttrs, Chunk, Cur: string;
+  After, Depth, L: Integer;
+  SelfClose: Boolean;
+begin
+  Result := False;
+  AAlign := maDefault;
+  ALastLine := AStart;
+
+  T := TMarkDownBlockParser.TrimLeftOnly(Lines[AStart]);
+  if (T = '') or (T[1] <> '<') then
+    Exit;
+  if not TryParseOpenTag(T, 1, TagName, TagAttrs, After, SelfClose) then
+    Exit;
+  if SelfClose or ((TagName <> 'p') and (TagName <> 'div')) then
+    Exit;
+  AAlign := ParseAlignAttr(GetHtmlAttr(TagAttrs, 'align'));
+  if AAlign = maDefault then
+    Exit;
+
+  AContent.Clear;
+  Depth := 1;
+  Cur := Copy(T, After, MaxInt);
+  L := AStart;
+  while True do
+  begin
+    if ScanAlignLine(Cur, TagName, Depth, Chunk) then
+    begin
+      // Keep a trailing chunk only if it has content: '<div align=..>' alone on
+      // its line would otherwise contribute a spurious blank first line.
+      if Trim(Chunk) <> '' then
+        AContent.Add(Chunk);
+      ALastLine := L;
+      Exit(True);
+    end;
+    if (L > AStart) or (Trim(Cur) <> '') then
+      AContent.Add(Cur);
+    Inc(L);
+    if L >= Lines.Count then
+      Exit;    // never closed: decline, and the line stays literal
+    Cur := Lines[L];
+  end;
+end;
+
 class function TMarkDownBlockParser.ParseBlocks(Lines: TStrings;
   StartLine: Integer; MapSource: Boolean): TMarkDownBlockList;
 var
@@ -547,6 +669,9 @@ var
   FenceChar: Char;
   FenceLen: Integer;
   FenceRest: string;
+  AlignLines: TStringList;
+  AlignValue: TMarkDownAlign;
+  AlignLastLine: Integer;
 
   procedure CommitParagraph;
   begin
@@ -765,6 +890,33 @@ begin
       Result.Add(NewBlock(bkRule, '', I));
       Inc(I);
       Continue;
+    end;
+
+    // <p align=..> / <div align=..>: a pure alignment container, parsed the way
+    // a quote is - strip the wrapper, recurse on the contents. Consuming the
+    // wrapper lines here is also what stops them reaching ParseRuns and being
+    // rendered as literal '<p align="center">' text.
+    if TMarkDownBlockParser.TrimLeftOnly(Lines[I]).StartsWith('<') then
+    begin
+      AlignLines := TStringList.Create;
+      try
+        if TryParseAlignContainer(Lines, I, AlignValue, AlignLines,
+          AlignLastLine) then
+        begin
+          CommitParagraph;
+          Block := NewBlock(bkAlignBlock, '', I);
+          Block.Align := AlignValue;
+          // MapSource=False like every other container: the children are offset
+          // by the stripped wrapper, so they carry no source map and verbatim
+          // copy falls back to plain text inside one.
+          Block.Children := ParseBlocks(AlignLines, 0, False);
+          Result.Add(Block);
+          I := AlignLastLine + 1;
+          Continue;
+        end;
+      finally
+        AlignLines.Free;
+      end;
     end;
 
     if Copy(TrimLeftOnly(Lines[I]), 1, 1) = '>' then
@@ -1176,7 +1328,8 @@ end;
 // paragraph, which does not correspond character-for-character to its markdown.
 procedure AddImageRun(Tokens: TMarkDownInlineList; const AltText, Url: string;
   Style: TFontStyles; ImgW: Single = 0; ImgWPct: Boolean = False;
-  ImgH: Single = 0; ImgHPct: Boolean = False);
+  ImgH: Single = 0; ImgHPct: Boolean = False;
+  ImgAlign: TMarkDownAlign = maDefault);
 var
   Token: TMarkDownInlineToken;
 begin
@@ -1191,7 +1344,27 @@ begin
   Token.ImgWidthPct := ImgWPct;
   Token.ImgHeight := ImgH;
   Token.ImgHeightPct := ImgHPct;
+  Token.ImgAlign := ImgAlign;
   Tokens.Add(Token);
+end;
+
+// The align="..." attribute, shared by <img align=..> and the <p>/<div>
+// alignment containers. Anything unrecognised (or absent) stays maDefault, so
+// the decision falls to the enclosing container or the viewer's ImageAlign
+// property rather than being guessed here.
+function ParseAlignAttr(const AValue: string): TMarkDownAlign;
+var
+  V: string;
+begin
+  V := LowerCase(Trim(AValue));
+  if (V = 'center') or (V = 'centre') or (V = 'middle') then
+    Result := maCenter
+  else if V = 'right' then
+    Result := maRight
+  else if V = 'left' then
+    Result := maLeft
+  else
+    Result := maDefault;
 end;
 
 // Returns Map[Start0 .. Start0 + LenChars] (LenChars + 1 entries: one per
@@ -2005,7 +2178,8 @@ begin
             ParseImgDim(GetHtmlAttr(TagAttrs, 'height'), ImgH, ImgHPct);
             FlushBuffer;
             AddImageRun(Tokens, GetHtmlAttr(TagAttrs, 'alt'), ImgSrc, BaseStyle,
-              ImgW, ImgWPct, ImgH, ImgHPct);
+              ImgW, ImgWPct, ImgH, ImgHPct,
+              ParseAlignAttr(GetHtmlAttr(TagAttrs, 'align')));
             I := TagAfter;
             // Consume an optional, immediately-following </img> (as in the GitHub
             // `<img ...></img>` form) so it is not shown literally.
