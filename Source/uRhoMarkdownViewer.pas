@@ -359,10 +359,10 @@ type
     procedure Reparse;
     function InlineTokensFor(ABlock: TMarkDownBlock): TMarkDownInlineList;
 
-    function BodyFamilies: TArray<string>;
-    function CodeFamilies: TArray<string>;
+    function BodyFamilies(const AText: string): TArray<string>;
+    function CodeFamilies(const AText: string): TArray<string>;
     function BaseTextStyle(const ASize: Single;
-      const ABold, AItalic: Boolean): ISkTextStyle;
+      const ABold, AItalic: Boolean; const AText: string): ISkTextStyle;
     function StyleForToken(const AToken: TMarkDownInlineToken;
       const ABaseSize: Single; const ABaseBold, ABaseItalic: Boolean)
       : ISkTextStyle;
@@ -930,7 +930,10 @@ const
   SymbolFontFamily = 'Segoe UI Symbol';
   {$ENDIF}
   {$IFDEF MACOS}
-  DefaultFontFamily = 'Helvetica Neue';
+  // 'Helvetica' and not 'Helvetica Neue': the latter did not resolve through
+  // Skia's font manager here, and an unresolved primary family is what lets
+  // Apple Color Emoji claim the space character - see BodyFamilies.
+  DefaultFontFamily = 'Helvetica';
   DefaultCodeFontFamily = 'Menlo';
   EmojiFontFamily = 'Apple Color Emoji';
   SymbolFontFamily = 'Apple Symbols';
@@ -1393,22 +1396,56 @@ end;
 
 { ---- text styles ---- }
 
-function TRhoMarkdownViewer.BodyFamilies: TArray<string>;
+// True when AText contains a codepoint the emoji/symbol faces exist for.
+//
+// Everything below U+2100 - Latin, Greek, Cyrillic, punctuation, dashes, curly
+// quotes, the bullet - is covered by any body font, so such a run is given the
+// primary family ALONE. See NeedsSymbolFallback's callers for why that matters.
+function NeedsSymbolFallback(const AText: string): Boolean;
+var
+  I: Integer;
 begin
-  Result := [FFontFamily, EmojiFontFamily, SymbolFontFamily];
+  for I := 1 to Length(AText) do
+    if AText[I] >= #$2100 then
+      Exit(True);
+  Result := False;
 end;
 
-function TRhoMarkdownViewer.CodeFamilies: TArray<string>;
+// 🔴 The emoji face is appended ONLY for text that needs it, and this is not an
+// optimisation - it is a correctness fix for macOS.
+//
+// Skia resolves the family list per character. Apple Color Emoji contains
+// U+0020 with an emoji-width advance (a full em, against roughly a quarter for
+// a text font), so as soon as it can claim the space character every gap in the
+// paragraph blows out - the reported "lots of spaces between the words". It can
+// claim it whenever the primary family fails to resolve, which is the whole
+// reason the symptom appears on macOS and not on Windows.
+//
+// Keeping the fallback off ASCII prose makes the space unreachable by the emoji
+// face regardless of whether the primary resolved. Segoe UI Emoji has the same
+// hazard; the fix is written once for both.
+function TRhoMarkdownViewer.BodyFamilies(const AText: string): TArray<string>;
 begin
-  Result := [FCodeFontFamily, EmojiFontFamily, SymbolFontFamily];
+  if NeedsSymbolFallback(AText) then
+    Result := [FFontFamily, EmojiFontFamily, SymbolFontFamily]
+  else
+    Result := [FFontFamily];
+end;
+
+function TRhoMarkdownViewer.CodeFamilies(const AText: string): TArray<string>;
+begin
+  if NeedsSymbolFallback(AText) then
+    Result := [FCodeFontFamily, EmojiFontFamily, SymbolFontFamily]
+  else
+    Result := [FCodeFontFamily];
 end;
 
 function TRhoMarkdownViewer.BaseTextStyle(const ASize: Single;
-  const ABold, AItalic: Boolean): ISkTextStyle;
+  const ABold, AItalic: Boolean; const AText: string): ISkTextStyle;
 begin
   Result := TSkTextStyle.Create;
   Result.Color := FTextColor;
-  Result.FontFamilies := BodyFamilies;
+  Result.FontFamilies := BodyFamilies(AText);
   Result.FontSize := ASize;
   if ABold and AItalic then
     Result.FontStyle := TSkFontStyle.BoldItalic
@@ -1444,10 +1481,10 @@ begin
   if AToken.IsSuperscript or AToken.IsSubscript then
     Size := Size * SuperSubScale;
 
-  Result := BaseTextStyle(Size, Bold, Italic);
+  Result := BaseTextStyle(Size, Bold, Italic, AToken.Text);
 
   if AToken.IsCode then
-    Result.FontFamilies := CodeFamilies;
+    Result.FontFamilies := CodeFamilies(AToken.Text);
 
   Decorations := [];
   if fsStrikeOut in AToken.Style then
@@ -1582,7 +1619,7 @@ var
 
 begin
   ParaStyle := TSkParagraphStyle.Create;
-  ParaStyle.TextStyle := BaseTextStyle(ASize, ABold, AItalic);
+  ParaStyle.TextStyle := BaseTextStyle(ASize, ABold, AItalic, AFallbackText);
   ParaStyle.TextAlign := AAlign;
   Builder := TSkParagraphBuilder.Create(ParaStyle);
 
@@ -1654,7 +1691,7 @@ begin
           // reads as a substitute rather than as body copy.
           if ATokens[I].Text <> '' then
           begin
-            Builder.PushStyle(BaseTextStyle(ASize, ABold, True));
+            Builder.PushStyle(BaseTextStyle(ASize, ABold, True, ATokens[I].Text));
             Emit(ATokens[I].Text, nil);
             Builder.Pop;
           end;
@@ -1849,7 +1886,7 @@ begin
 
   BaseStyle := TSkTextStyle.Create;
   BaseStyle.Color := FTextColor;
-  BaseStyle.FontFamilies := CodeFamilies;
+  BaseStyle.FontFamilies := CodeFamilies(ABlock.Text);
   BaseStyle.FontSize := Size;
 
   ParaStyle := TSkParagraphStyle.Create;
@@ -1871,7 +1908,7 @@ begin
     begin
       RunStyle := TSkTextStyle.Create;
       RunStyle.Color := SyntaxColorFor(Tokens[I].Kind);
-      RunStyle.FontFamilies := CodeFamilies;
+      RunStyle.FontFamilies := CodeFamilies(Tokens[I].Text);
       RunStyle.FontSize := Size;
       Builder.PushStyle(RunStyle);
       Builder.AddText(Tokens[I].Text);
@@ -1904,7 +1941,7 @@ var
   Builder: ISkParagraphBuilder;
 begin
   ParaStyle := TSkParagraphStyle.Create;
-  ParaStyle.TextStyle := BaseTextStyle(ASize, False, False);
+  ParaStyle.TextStyle := BaseTextStyle(ASize, False, False, AText);
   Builder := TSkParagraphBuilder.Create(ParaStyle);
   Builder.AddText(AText);
   Result := Builder.Build;
@@ -2242,7 +2279,7 @@ begin
   for I := 0 to High(Pairs) do
   begin
     ALayout.MetaRows[I].KeyPara :=
-      BuildRun(Pairs[I].Key, BaseTextStyle(FFontSize, True, False));
+      BuildRun(Pairs[I].Key, BaseTextStyle(FFontSize, True, False, Pairs[I].Key));
     MaxKeyW := Max(MaxKeyW, ALayout.MetaRows[I].KeyPara.LongestLine);
   end;
   // A pixel of slack: laying a key out at exactly its intrinsic width makes
@@ -2259,7 +2296,7 @@ begin
     for I := 0 to High(Pairs) do
     begin
       ParaStyle := TSkParagraphStyle.Create;
-      ParaStyle.TextStyle := BaseTextStyle(FFontSize, False, False);
+      ParaStyle.TextStyle := BaseTextStyle(FFontSize, False, False, Pairs[I].Value);
       Builder := TSkParagraphBuilder.Create(ParaStyle);
       Builder.AddText(Pairs[I].Value);
       ValPara := Builder.Build;
@@ -3889,7 +3926,7 @@ var
 begin
   if FCopyLabel <> nil then
     Exit;
-  Style := BaseTextStyle(FFontSize * CodeButtonScale, False, False);
+  Style := BaseTextStyle(FFontSize * CodeButtonScale, False, False, 'Copy');
   FCopyLabel := BuildRun('Copy', Style);
   FCopiedLabel := BuildRun('Copied!', Style);
 end;
