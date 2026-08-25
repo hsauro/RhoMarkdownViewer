@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<test-results name="D:\Documents\Embarcadero\Studio\Projects\FMX\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="180" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-08-16" time="15:41:18">
+<test-results name="D:\Documents\Embarcadero\Studio\Projects\fmx\RhodyComponents\RhoMarkDownViewer\Tests\RhoMarkdownTests.exe" total="182" errors="0" failures="0" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2026-08-25" time="13:42:13">
   <culture-info current-culture="en" current-uiculture="en" />
-  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="15:41:18" asserts="0">
+  <test-suite type="Assembly" name="RhoMarkdownTests.exe" executed="true" result="Success" success="True" time="13:42:13" asserts="0">
     <results>
-        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.012" asserts="0" >
+        <test-suite type="Namespace" name="Test" executed="true" result="Success" success="True" time="0.011" asserts="0" >
           <results>
-              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.012" asserts="0" >
+              <test-suite type="Namespace" name="RhoMarkdown" executed="true" result="Success" success="True" time="0.011" asserts="0" >
                 <results>
                     <test-suite type="Fixture" name="TMarkdownHighlightTests" executed="True" result="Success" success="True" time="0.010" >
                       <results>
@@ -21,7 +21,7 @@
                         <test-case name="TestSQLStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestSQLNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestRegistry" executed="True" result="Success" success="True" time="0.000" asserts="0" />
-                        <test-case name="TestCKeywords" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TestCKeywords" executed="True" result="Success" success="True" time="0.001" asserts="0" />
                         <test-case name="TestCComments" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestCStrings" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestCNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -63,7 +63,7 @@
                         <test-case name="TestDfmCharConstants" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestDelphiSourceFileAliases" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestTokenStreamInvariantsAllLanguages" executed="True" result="Success" success="True" time="0.007" asserts="0" />
-                        <test-case name="TestTokenStreamInvariantsAdversarialInput" executed="True" result="Success" success="True" time="0.003" asserts="0" />
+                        <test-case name="TestTokenStreamInvariantsAdversarialInput" executed="True" result="Success" success="True" time="0.002" asserts="0" />
                         <test-case name="TestLaTeXHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestPowerShellHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TestBatchHighlighter" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -77,7 +77,7 @@
                       <results>
                         <test-case name="HeadingEmitsHTag" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParagraphWrapsInP" executed="True" result="Success" success="True" time="0.000" asserts="0" />
-                        <test-case name="InlineStylesEmitTags" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="InlineStylesEmitTags" executed="True" result="Success" success="True" time="0.001" asserts="0" />
                         <test-case name="LinkEmitsAnchor" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="InlineCodeEmitsCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="EscapesHtmlSpecials" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -104,6 +104,8 @@
                         <test-case name="ParsesNestedOrderedListItem" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ExtractsCheckedTask" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="RecognizesTableStart" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="RecognizesTableStartWithShortDashRuns" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="RejectsTableStartWithoutDashes" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksJoinsParagraphLines" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksGroupsFencedCode" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="ParseBlocksExtractsFenceLanguage" executed="True" result="Success" success="True" time="0.000" asserts="0" />
@@ -177,7 +179,7 @@
                         <test-case name="SplitTableRowSplitsCells" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TryParseImageParsesAltAndUrl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TryParseImageRejectsNonImage" executed="True" result="Success" success="True" time="0.000" asserts="0" />
-                        <test-case name="TryParseLinkReferenceParsesNameAndUrl" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                        <test-case name="TryParseLinkReferenceParsesNameAndUrl" executed="True" result="Success" success="True" time="0.001" asserts="0" />
                         <test-case name="TryParseLinkReferenceDropsTitle" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TryParseListItemHandlesBulletsAndNumbers" executed="True" result="Success" success="True" time="0.000" asserts="0" />
                         <test-case name="TryParseListItemRejectsPlainText" executed="True" result="Success" success="True" time="0.000" asserts="0" />

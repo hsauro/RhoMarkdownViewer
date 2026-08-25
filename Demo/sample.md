@@ -148,6 +148,14 @@ remote image falls back to italic alt text.
 | Left data | Sample A | Centered | $100.00 |
 | **Bold** | `code` | ~~old~~ | $2.50 |
 
+Short dash runs are a valid GFM delimiter row, and a narrow column must keep at
+least its longest word rather than wrapping mid-word when the table is squeezed.
+
+| # | Status | Milestone | Done when |
+| :-- | :-- | :- | :---- |
+| **M0** | **done** | Migrate to the new wrapper | It builds and runs on the new wrapper; load, simulate and import unchanged |
+| **M1** | | Sibling project skeleton and console harness | The harness builds and runs against a hand-built fixture model source |
+
 ![Alt text for a missing image](images/example.png)
 
 An inline image ![icon](images/example.png) sits in the text flow, and a

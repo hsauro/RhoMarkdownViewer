@@ -309,7 +309,9 @@ begin
     else if not CharInSet(T[I], [' ', #9]) then
       Exit(False);
 
-  Result := DashCount >= 3;
+  // GFM requires only one dash in a delimiter cell (`| :-- |` is valid);
+  // demanding three silently demoted such a table to paragraphs.
+  Result := DashCount >= 1;
 end;
 
 class function TMarkDownBlockParser.IsTableSeparator(

@@ -19,7 +19,7 @@ Done and verified:
 - `Source/` — `uRhoMarkdownTypes.pas`, `uRhoMarkdownParser.pas`,
   `uRhoMarkdownHighlight.pas`, `uRhoMarkdownHtml.pas`: no FMX or VCL dependency
   (5,757 lines).
-- `Tests/RhoMarkdownTests.dpr` — **148 tests, 148 passing.**
+- `Tests/RhoMarkdownTests.dpr` — **182 tests, 182 passing.**
 - `Source/uRhoMarkdownViewer.pas` — `TRhoMarkdownViewer`, the control:
   `TSkPaintBox` + owned `TScrollBar`, parse-on-change, cached display list,
   published property surface, and the full inline layout pass.
@@ -477,7 +477,7 @@ The component must be installable and fully designable.
 
 ## Tests
 
-`Tests/RhoMarkdownTests.dpr` — **148 tests, all passing.** Console app, no FMX or
+`Tests/RhoMarkdownTests.dpr` — **182 tests, all passing.** Console app, no FMX or
 Skia dependency, so the parse layer stays testable without a UI.
 
 ```
@@ -790,10 +790,25 @@ MarkdownRender.exe doc.md out.png 760 14 search alpha [dark]
 ### Tables
 
 Three passes in `LayoutTable`: natural column widths from each cell's
-`MaxIntrinsicWidth`; proportional scale-down if they overflow the content
-width; then lay every cell out at its final column width and stack the rows.
+`MaxIntrinsicWidth`; a squeeze onto the content width if they overflow, taking
+the shortfall from each column's slack above its longest word; then lay every
+cell out at its final column width and stack the rows.
 Row height is the tallest cell plus padding, applied back to every cell so a
 row shares one bottom edge.
+
+⚠️ **A delimiter cell needs only ONE dash.** `IsTableAlignCell` demanded three,
+so `| :-- | :-- |` — which GitHub renders as a table — failed `IsTableStart` and
+the whole table fell through as a run of paragraphs. The symptom looks like a
+*rendering* bug but the table never got parsed at all; check
+`TMarkDownBlockParser.IsTableStart` before looking at `LayoutTable`.
+
+⚠️ **The overflow squeeze takes from slack, not proportionally.** Scaling every
+column by `Avail / Total` shrinks a narrow column (`#`, `done`) below its own
+longest word, so it wraps mid-word (`M` over `0`) while a wide prose column still
+has room to give. Pass 2 measures `MinIntrinsicWidth` — the widest unbreakable
+word — per column and removes the shortfall from each column's slack *above*
+that floor, in proportion to how much slack it has. Only when the minimums
+themselves overflow does it fall back to the flat proportional scale.
 
 ⚠️ **Column widths need a pixel of slack.** Laying a cell out at exactly its
 `MaxIntrinsicWidth` makes Skia's line breaker wrap the last word on float

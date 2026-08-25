@@ -1979,9 +1979,10 @@ var
   Lines, Cells: TStringList;
   Aligns: TArray<TSkTextAlign>;
   RowTexts: TArray<TArray<string>>;
-  ColWidths: TArray<Single>;
+  ColWidths, MinWidths: TArray<Single>;
   ColCount, R, C, I: Integer;
   Natural, Total, Avail, Scale, X, Y, RowHeight: Single;
+  Shortfall, Slack, TotalSlack: Single;
   Probe: ISkParagraph;
   IsHeader: Boolean;
   Spans: TArray<TRhoLinkSpan>;
@@ -2039,6 +2040,7 @@ begin
     // would take with no wrapping, which is what we want before deciding
     // whether the table has to be squeezed.
     SetLength(ColWidths, ColCount);
+    SetLength(MinWidths, ColCount);
     for R := 0 to High(RowTexts) do
       for C := 0 to High(RowTexts[R]) do
       begin
@@ -2050,19 +2052,45 @@ begin
         Natural := Ceil(Probe.MaxIntrinsicWidth) + 1 + TableCellPadH * 2;
         if Natural > ColWidths[C] then
           ColWidths[C] := Natural;
+        // The widest single unbreakable word: below this the cell can only
+        // wrap mid-word, which is never what the author wanted.
+        Natural := Ceil(Probe.MinIntrinsicWidth) + 1 + TableCellPadH * 2;
+        if Natural > MinWidths[C] then
+          MinWidths[C] := Natural;
       end;
 
-    // Pass 2: if the natural widths overflow, scale them down proportionally
-    // and let the cells wrap.
+    // Pass 2: if the natural widths overflow, take the shortfall out of the
+    // columns' slack above their minimum, in proportion to how much slack each
+    // has. Scaling every column by the same factor instead squeezes a narrow
+    // column (a "#" or a "done") below its own longest word, so it wraps
+    // mid-word while a wide prose column still has room to give.
     Total := 0;
     for C := 0 to ColCount - 1 do
       Total := Total + ColWidths[C];
     Avail := Max(1, AContentWidth);
     if Total > Avail then
     begin
-      Scale := Avail / Total;
+      Shortfall := Total - Avail;
+      TotalSlack := 0;
       for C := 0 to ColCount - 1 do
-        ColWidths[C] := Max(TableCellPadH * 2 + 1, ColWidths[C] * Scale);
+        TotalSlack := TotalSlack + Max(0, ColWidths[C] - MinWidths[C]);
+
+      if TotalSlack >= Shortfall then
+      begin
+        for C := 0 to ColCount - 1 do
+        begin
+          Slack := Max(0, ColWidths[C] - MinWidths[C]);
+          ColWidths[C] := ColWidths[C] - Slack * (Shortfall / TotalSlack);
+        end;
+      end
+      else
+      begin
+        // Even at every column's minimum the table overflows; fall back to a
+        // proportional squeeze and accept mid-word wrapping.
+        Scale := Avail / Total;
+        for C := 0 to ColCount - 1 do
+          ColWidths[C] := Max(TableCellPadH * 2 + 1, ColWidths[C] * Scale);
+      end;
     end;
 
     // Pass 3: lay each cell out at its final column width and stack the rows.

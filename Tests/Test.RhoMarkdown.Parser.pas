@@ -18,6 +18,10 @@ type
     [Test]
     procedure RecognizesTableStart;
     [Test]
+    procedure RecognizesTableStartWithShortDashRuns;
+    [Test]
+    procedure RejectsTableStartWithoutDashes;
+    [Test]
     procedure ParseBlocksJoinsParagraphLines;
     [Test]
     procedure ParseBlocksGroupsFencedCode;
@@ -270,6 +274,45 @@ begin
     Lines.Add('| Left | Right |');
     Lines.Add('| :--- | ---: |');
     Assert.IsTrue(TMarkDownBlockParser.IsTableStart(Lines, 0));
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.RecognizesTableStartWithShortDashRuns;
+var
+  Lines: TStringList;
+  Blocks: TMarkDownBlockList;
+begin
+  // GFM needs only one dash per delimiter cell. Requiring three quietly
+  // demoted a "| :-- | :-- |" table to a run of paragraphs.
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('| # | Status |');
+    Lines.Add('| :-- | :- |');
+    Lines.Add('| M0 | done |');
+    Assert.IsTrue(TMarkDownBlockParser.IsTableStart(Lines, 0));
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkTable);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.RejectsTableStartWithoutDashes;
+var
+  Lines: TStringList;
+begin
+  // A delimiter cell still needs at least one dash - a bare "| : |" or a row
+  // of prose must not be mistaken for one.
+  Lines := TStringList.Create;
+  try
+    Lines.Add('| a | b |');
+    Lines.Add('| : | : |');
+    Assert.IsFalse(TMarkDownBlockParser.IsTableStart(Lines, 0));
   finally
     Lines.Free;
   end;
