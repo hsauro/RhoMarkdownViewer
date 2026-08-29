@@ -128,7 +128,7 @@ implementation
 Uses IOUtils;
 
 Const
-   VERSION = '0.5';
+   VERSION = '0.6';
 
 type
   TComboBoxHelper = class helper for TComboBox

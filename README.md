@@ -23,6 +23,18 @@ the non-visual parser, highlighter, and HTML layers were ported verbatim, and th
 entire visual layer (layout, paint, hit-testing, selection) was rebuilt on Skia.
 See [Differences from the VCL original](#differences-from-the-vcl-original).
 
+<p align="center">
+  <img src="Images/sample1.png" width="900"
+       alt="The MDViewerEditor demo showing nested block quotes, container list items, and syntax-highlighted code blocks">
+</p>
+
+<p align="center">
+  <em>The <code>MDViewerEditor</code> demo with the text panel closed, rendering
+  the &ldquo;Containers &amp; HTML&rdquo; sample: nested quote bars, list items
+  holding their own paragraphs and code blocks, and per-language syntax
+  colouring.</em>
+</p>
+
 ---
 
 ## Contents
