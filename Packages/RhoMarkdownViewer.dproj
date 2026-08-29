@@ -105,6 +105,7 @@
         <DCCReference Include="..\Source\uRhoMarkdownHighlight.pas"/>
         <DCCReference Include="..\Source\uRhoMarkdownParser.pas"/>
         <DCCReference Include="..\Source\uRhoMarkdownHtml.pas"/>
+        <DCCReference Include="..\Source\uRhoMarkdownMath.pas"/>
         <DCCReference Include="..\Source\uRhoMarkdownViewer.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

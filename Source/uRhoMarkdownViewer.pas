@@ -49,7 +49,8 @@ uses
   uRhoMarkdownTypes,
   uRhoMarkdownHighlight,
   uRhoMarkdownParser,
-  uRhoMarkdownHtml;
+  uRhoMarkdownHtml,
+  uRhoMarkdownMath;
 
 type
   // A run of characters inside one paragraph that belongs to a link.
@@ -71,12 +72,17 @@ type
     Rects: TArray<TRectF>;
   end;
 
-  // Something occupying a placeholder slot in a paragraph: either an inline
-  // image or a super/subscript run drawn at a shifted baseline. Exactly one of
-  // Image and Para is set.
+  // Something occupying a placeholder slot in a paragraph: an inline image, a
+  // super/subscript run drawn at a shifted baseline, or a math formula. Exactly
+  // one of Image, Para and Math is set.
   TRhoPlaceholder = record
     Image: ISkImage;
     Para: ISkParagraph;
+    // Inline math. The layout is in em units and owned by the math unit's
+    // cache, so this is a BORROWED reference - never free it. MathSize is the
+    // font size the slot was reserved at, which is what paint replays it with.
+    Math: TRhoMathLayout;
+    MathSize: Single;
     Rect: TRectF;          // filled from GetRectsForPlaceholders after layout
   end;
 
@@ -85,6 +91,12 @@ type
   TRhoTableCell = record
     Paragraph: ISkParagraph;
     Rect: TRectF;
+    // Anything spliced into the cell's text flow - an inline image, a shifted
+    // super/subscript run, a formula. A cell builds its own paragraph, so it
+    // needs its own placeholder list: without one the slot is reserved and
+    // nothing is ever drawn into it, and the content silently disappears.
+    // Rects are relative to the cell paragraph's origin.
+    Placeholders: TArray<TRhoPlaceholder>;
     // Where this cell's text sits inside the table block's flattened
     // PlainText. Flattening (rather than giving TRhoDocPos a cell index) is
     // what lets selection treat a table like any other block.
@@ -132,6 +144,14 @@ type
     MetaValueLeft: Single;      // where value paragraphs paint (relative to BoxLeft)
     Image: ISkImage;           // block images only; nil means alt text was used
     ImageRect: TRectF;         // relative to the block top-left
+    // Display math (bkMath), borrowed from the math unit's cache - never freed
+    // here. nil means the engine was unavailable or the formula did not parse,
+    // in which case Paragraph holds the LaTeX rendered as literal text instead.
+    Math: TRhoMathLayout;
+    MathRect: TRectF;          // relative to the block top-left
+    // The font size MathRect was measured at. A formula wider than the content
+    // is scaled down to fit, so this is not always FontSize * MathBlockScale.
+    MathSize: Single;
     // Everything spliced into the text flow as a placeholder - inline images
     // and raised/lowered super/subscript runs - in the order added. Rects come
     // from GetRectsForPlaceholders after layout, so Skia decides placement.
@@ -292,6 +312,11 @@ type
     // FLayout of the code block under the pointer (-1 for none); FCopiedCode
     // is the one showing "Copied!" feedback, cleared by FCopiedTimer.
     FShowCodeCopyButton: Boolean;
+    // LaTeX math rendering. Costs nothing when the engine is not deployed -
+    // uRhoMarkdownMath loads it dynamically and reports itself unavailable, and
+    // every formula then renders as its literal LaTeX source. Set False to show
+    // the source even where the engine IS available.
+    FMathEnabled: Boolean;
     FHoveredCode: Integer;
     FCopiedCode: Integer;
     FCopyButtonHot: Boolean;
@@ -382,7 +407,8 @@ type
       var ALayout: TRhoBlockLayout): ISkParagraph;
     function BuildCellText(const AText: string; const AWidth: Single;
       const ABold: Boolean; const AAlign: TSkTextAlign;
-      out ASpans: TArray<TRhoLinkSpan>; out APlain: string): ISkParagraph;
+      out ASpans: TArray<TRhoLinkSpan>; out APlain: string;
+      out APlaceholders: TArray<TRhoPlaceholder>): ISkParagraph;
     procedure CollectLinkRects(const AParagraph: ISkParagraph;
       const ASpans: TArray<TRhoLinkSpan>; const AOriginX, AOriginY: Single;
       var ALinks: TArray<TRhoLinkHit>);
@@ -443,6 +469,7 @@ type
     procedure UpdateAutoScroll(const AY: Single);
     procedure AutoScrollTick(Sender: TObject);
     procedure SetShowCodeCopyButton(const AValue: Boolean);
+    procedure SetMathEnabled(const AValue: Boolean);
     procedure EnsureCopyLabels;
     function CodeButtonRect(const ALayout: TRhoBlockLayout;
       const AScreenTop: Single): TRectF;
@@ -679,6 +706,13 @@ type
     // block. Set False for a completely static preview.
     property ShowCodeCopyButton: Boolean read FShowCodeCopyButton
       write SetShowCodeCopyButton default True;
+    // Render $..$ / $$..$$ / ```math as typeset formulas. Requires the RaTeX
+    // library and the KaTeX fonts beside the executable; without them (or with
+    // this off) the LaTeX source is shown literally instead. See
+    // uRhoMarkdownMath for deployment and for RhoSetMathLibraryPath /
+    // RhoSetMathFontDir.
+    property MathEnabled: Boolean read FMathEnabled
+      write SetMathEnabled default True;
     // Expandable node in the Object Inspector; also settable in code.
     property SyntaxColors: TRhoSyntaxColors read FSyntaxColors
       write SetSyntaxColors;
@@ -975,6 +1009,12 @@ const
   // Extra space under an H1/H2 rule.
   HeadingRuleGap = 4;
 
+  // Breathing room above and below a display-math block, and how much bigger
+  // than body text a displayed formula is set - display math is a figure, and
+  // reads as cramped at body size.
+  MathBlockPadV = 6;
+  MathBlockScale = 1.15;
+
   SuperSubScale = 0.75;
   // How far a super/subscript baseline shifts, as a fraction of the base size.
   SuperSubShift = 0.33;
@@ -985,6 +1025,7 @@ begin
   inherited Create(AOwner);
 
   FShowCodeCopyButton := True;
+  FMathEnabled := True;
   FHoveredCode := -1;
   FCopiedCode := -1;
   FPressedTask := -1;
@@ -1208,6 +1249,10 @@ begin
   TMarkDownBlockParser.ExtractLinkReferences(FMarkdown, FReferences);
   FreeAndNil(FBlocks);
   FBlocks := TMarkDownBlockParser.ParseBlocks(FMarkdown);
+  // Laid-out formulas are cached in em units, so they survive every resize and
+  // re-layout - but they belong to the document that produced them. Dropping
+  // them here is what keeps the cache bounded by one document.
+  RhoMathClearCache;
   InvalidateLayout;
 end;
 
@@ -1591,6 +1636,8 @@ var
   RunStyle: ISkTextStyle;
   RunPara: ISkParagraph;
   Ph: TRhoPlaceholder;
+  MathLay: TRhoMathLayout;
+  MathTok: TMarkDownInlineToken;
 
   // Records what a token contributed: the rendered text, and where each of its
   // characters came from in the markdown source (-1 when unknown).
@@ -1638,6 +1685,53 @@ begin
     else
       for I := 0 to ATokens.Count - 1 do
       begin
+        // Inline math, spliced in as a placeholder the way an image is: one
+        // slot, one position in the paragraph text. The formula is drawn in
+        // paint (see PaintDocument), so the placeholder only reserves space.
+        //
+        // When the math engine is not deployed - or the formula does not parse
+        // - this falls through to showing the LaTeX as a literal code run.
+        // That fallback is the whole reason the token keeps its source text and
+        // its full SourceMap.
+        if ATokens[I].IsMath then
+        begin
+          MathLay := nil;
+          if FMathEnabled then
+            MathLay := RhoMathLayout(ATokens[I].Text, ATokens[I].MathDisplay,
+              FTextColor);
+          if MathLay <> nil then
+          begin
+            // Skia places a placeholder by its baseline offset, measured from
+            // the slot's top - which is exactly what HeightEm means here, so
+            // the formula sits on the text baseline with its depth below.
+            Builder.AddPlaceholder(TSkPlaceholderStyle.Create(
+              MathLay.WidthEm * ASize, (MathLay.HeightEm + MathLay.DepthEm) * ASize,
+              TSkPlaceholderAlignment.Baseline, TSkTextBaseline.Alphabetic,
+              MathLay.HeightEm * ASize));
+            Ph := Default(TRhoPlaceholder);
+            Ph.Math := MathLay;
+            Ph.MathSize := ASize;
+            APlaceholders := APlaceholders + [Ph];
+            // Bookkeeping only - AddPlaceholder already put a position into the
+            // paragraph text. The map keeps the whole formula anchored to where
+            // it starts in the source, so a selection across it still copies
+            // verbatim markdown.
+            if Length(ATokens[I].SourceMap) > 0 then
+              Emit(#$FFFC, [ATokens[I].SourceMap[0]], False)
+            else
+              Emit(#$FFFC, nil, False);
+            Continue;
+          end;
+          // No engine, or bad LaTeX: show the source. Rendered as a code run so
+          // it reads as unrendered input rather than as body copy.
+          MathTok := ATokens[I];
+          MathTok.IsCode := True;
+          Builder.PushStyle(StyleForToken(MathTok, ASize, ABold, AItalic));
+          Emit(MathTok.Text, MathTok.SourceMap);
+          Builder.Pop;
+          Continue;
+        end;
+
         if ATokens[I].IsImage then
         begin
           Img := ImageFor(ATokens[I].Url);
@@ -1853,11 +1947,13 @@ end;
 
 function TRhoMarkdownViewer.BuildCellText(const AText: string;
   const AWidth: Single; const ABold: Boolean; const AAlign: TSkTextAlign;
-  out ASpans: TArray<TRhoLinkSpan>; out APlain: string): ISkParagraph;
+  out ASpans: TArray<TRhoLinkSpan>; out APlain: string;
+  out APlaceholders: TArray<TRhoPlaceholder>): ISkParagraph;
 var
   Tokens: TMarkDownInlineList;
   Map: TArray<Integer>;
-  Phs: TArray<TRhoPlaceholder>;
+  Boxes: TArray<TSkTextBox>;
+  I: Integer;
 begin
   // Table cells are not blocks, so their tokens are not cached anywhere - we
   // own this list and must free it. The per-character source map is discarded:
@@ -1866,9 +1962,22 @@ begin
   Tokens := TMarkDownBlockParser.ParseInline(AText, FReferences);
   try
     Result := BuildTokens(Tokens, AText, AWidth, FFontSize, ABold, False,
-      AAlign, ASpans, APlain, Map, Phs);
+      AAlign, ASpans, APlain, Map, APlaceholders);
   finally
     Tokens.Free;
+  end;
+
+  // Read the placeholder rects back, exactly as BuildInline does for a block.
+  // Discarding them here is what made an inline image, a super/subscript run or
+  // a formula in a table cell reserve its space and then draw nothing.
+  if Length(APlaceholders) > 0 then
+  begin
+    Boxes := Result.GetRectsForPlaceholders;
+    for I := 0 to High(APlaceholders) do
+      if I <= High(Boxes) then
+        APlaceholders[I].Rect := Boxes[I].Rect
+      else
+        APlaceholders[I].Rect := TRectF.Empty;
   end;
 end;
 
@@ -1984,6 +2093,7 @@ var
   Natural, Total, Avail, Scale, X, Y, RowHeight: Single;
   Shortfall, Slack, TotalSlack: Single;
   Probe: ISkParagraph;
+  ProbePhs: TArray<TRhoPlaceholder>;   // discarded; the probe only measures
   IsHeader: Boolean;
   Spans: TArray<TRhoLinkSpan>;
   CellPlain: string;
@@ -2044,8 +2154,10 @@ begin
     for R := 0 to High(RowTexts) do
       for C := 0 to High(RowTexts[R]) do
       begin
+        // The probe only wants intrinsic widths, so its placeholders are
+        // discarded - the real ones come from the final-width pass below.
         Probe := BuildCellText(RowTexts[R][C], 100000, R = 0, TSkTextAlign.Left,
-          Spans, CellPlain);
+          Spans, CellPlain, ProbePhs);
         // Round up and add a pixel of slack. Laying a cell out at exactly its
         // MaxIntrinsicWidth makes Skia's line breaker wrap the last word on
         // float rounding - "$100.00" comes out as "$100.0" over "0".
@@ -2109,7 +2221,7 @@ begin
         begin
           ALayout.Rows[R][C].Paragraph := BuildCellText(RowTexts[R][C],
             Max(1, ColWidths[C] - TableCellPadH * 2), IsHeader, Aligns[C],
-            Spans, CellPlain);
+            Spans, CellPlain, ALayout.Rows[R][C].Placeholders);
           // Cell paragraph origin, in the same space the block's link rects
           // use: absolute X, Y relative to the block top.
           CollectLinkRects(ALayout.Rows[R][C].Paragraph, Spans,
@@ -2201,8 +2313,8 @@ end;
 procedure TRhoMarkdownViewer.PaintTableText(const ACanvas: ISkCanvas;
   const ALayout: TRhoBlockLayout; const AScreenTop: Single);
 var
-  R, C: Integer;
-  Cell: TRectF;
+  R, C, J: Integer;
+  Cell, PhRect: TRectF;
 begin
   for R := 0 to High(ALayout.Rows) do
     for C := 0 to High(ALayout.Rows[R]) do
@@ -2212,6 +2324,27 @@ begin
         Cell.Offset(ALayout.BoxLeft, AScreenTop);
         ALayout.Rows[R][C].Paragraph.Paint(ACanvas,
           Cell.Left + TableCellPadH, Cell.Top + TableCellPadV);
+
+        // Whatever sits in the cell's placeholder slots - an inline image, a
+        // shifted super/subscript run, a formula - painted in the same order
+        // and the same way the block-level loop in PaintDocument does it.
+        for J := 0 to High(ALayout.Rows[R][C].Placeholders) do
+        begin
+          PhRect := ALayout.Rows[R][C].Placeholders[J].Rect;
+          if PhRect.IsEmpty then
+            Continue;
+          PhRect.Offset(Cell.Left + TableCellPadH, Cell.Top + TableCellPadV);
+          if ALayout.Rows[R][C].Placeholders[J].Image <> nil then
+            ACanvas.DrawImageRect(ALayout.Rows[R][C].Placeholders[J].Image,
+              PhRect, TSkSamplingOptions.High)
+          else if ALayout.Rows[R][C].Placeholders[J].Para <> nil then
+            ALayout.Rows[R][C].Placeholders[J].Para.Paint(ACanvas,
+              PhRect.Left, PhRect.Top)
+          else if ALayout.Rows[R][C].Placeholders[J].Math <> nil then
+            RhoMathDraw(ACanvas, ALayout.Rows[R][C].Placeholders[J].Math,
+              PhRect.Left, PhRect.Top,
+              ALayout.Rows[R][C].Placeholders[J].MathSize, FTextColor);
+        end;
       end;
 end;
 
@@ -2526,6 +2659,59 @@ begin
     bkFrontMatter:
       begin
         LayoutFrontMatter(ABlock, AContentLeft, AContentWidth, ALayout);
+        Exit;
+      end;
+
+    bkMath:
+      begin
+        ALayout.Math := nil;
+        if FMathEnabled then
+          ALayout.Math := RhoMathLayout(ABlock.Text, True, FTextColor);
+
+        if ALayout.Math = nil then
+        begin
+          // No engine deployed, or the formula does not parse: show the LaTeX
+          // itself, laid out exactly as a code block. Math is a specialist
+          // need, so a document containing it must still read sensibly in an
+          // application that ships neither the library nor the fonts.
+          ALayout.TextLeft := AContentLeft + CodePadding;
+          ALayout.Paragraph := BuildCode(ABlock,
+            Max(1, AContentWidth - CodePadding * 2));
+          ALayout.Height := ALayout.Paragraph.Height + CodePadding * 2;
+          ALayout.PlainText := ABlock.Text;
+          ALayout.CharSource := ABlock.SourceMap;
+          Exit;
+        end;
+
+        // Scale down to fit, never up: a wide formula shrinks rather than
+        // overflowing the content width, the same rule block images follow.
+        ALayout.MathSize := FFontSize * MathBlockScale;
+        if (ALayout.Math.WidthEm > 0) and
+           (ALayout.Math.WidthEm * ALayout.MathSize > AContentWidth) then
+          ALayout.MathSize := AContentWidth / ALayout.Math.WidthEm;
+
+        ALayout.MathRect := RectF(0, MathBlockPadV,
+          ALayout.Math.WidthEm * ALayout.MathSize,
+          MathBlockPadV + (ALayout.Math.HeightEm + ALayout.Math.DepthEm) *
+            ALayout.MathSize);
+        // Display math is centred by convention (KaTeX does the same), but an
+        // enclosing <p>/<div align=..> still wins - it was written around the
+        // block deliberately.
+        if AAlign = maDefault then
+          ALayout.MathRect.Offset(
+            Max(0, (AContentWidth - ALayout.MathRect.Width) / 2), 0)
+        else
+          ALayout.MathRect.Offset(
+            ImageOffsetFor(ResolveImageAlign(AAlign),
+              ALayout.MathRect.Width, AContentWidth), 0);
+        ALayout.Height := ALayout.MathRect.Height + MathBlockPadV;
+
+        // Selectable, and it copies as the LaTeX source - which for a formula
+        // is the useful thing to paste. A $$ block carries no source map, so
+        // CharSource may be empty and markdown copy falls back to this text;
+        // that is the same text either way.
+        ALayout.PlainText := ABlock.Text;
+        ALayout.CharSource := ABlock.SourceMap;
         Exit;
       end;
 
@@ -3719,6 +3905,14 @@ begin
         L.BoxLeft + L.MetaValueLeft, L.Top + L.MetaRows[Row].Top);
     end;
   end
+  else if L.Math <> nil then
+    // A rendered formula has no text runs to measure against: its PlainText is
+    // the LaTeX source, which is what selection and search index. So any
+    // overlap highlights the formula as a whole, the only granularity that
+    // means anything here. (When the engine is unavailable Math is nil and the
+    // LaTeX is a normal paragraph, highlighted character by character below.)
+    Add(RectF(L.BoxLeft + L.MathRect.Left, L.Top + L.MathRect.Top,
+      L.BoxLeft + L.MathRect.Right, L.Top + L.MathRect.Bottom))
   else
     // An ordinary block's single paragraph IS the whole of PlainText, so its
     // slice starts at 0.
@@ -3936,6 +4130,16 @@ begin
 end;
 
 { ---- code-block copy button ---- }
+
+procedure TRhoMarkdownViewer.SetMathEnabled(const AValue: Boolean);
+begin
+  if FMathEnabled = AValue then
+    Exit;
+  FMathEnabled := AValue;
+  // Formulas are measured during layout, so switching this changes geometry,
+  // not just pixels.
+  InvalidateLayout;
+end;
 
 procedure TRhoMarkdownViewer.SetShowCodeCopyButton(const AValue: Boolean);
 begin
@@ -4203,6 +4407,17 @@ begin
       FLayout[I].Paragraph.Paint(ACanvas, FLayout[I].TextLeft,
         FLayout[I].TextTop - AScrollY);
 
+    // Display math. Drawn in the text pass, after the highlight layer, so a
+    // selection or search highlight sits behind the formula rather than over
+    // it - the same reason tables and front-matter cards draw in two passes.
+    // The colour is passed in rather than baked into the layout, which is what
+    // lets one cached formula serve both themes.
+    if FLayout[I].Math <> nil then
+      RhoMathDraw(ACanvas, FLayout[I].Math,
+        FLayout[I].BoxLeft + FLayout[I].MathRect.Left,
+        ScreenTop + FLayout[I].MathRect.Top,
+        FLayout[I].MathSize, FTextColor);
+
     // Inline images and shifted super/subscript runs sit in placeholder gaps
     // the paragraph left for them, so they paint after the text, in
     // paragraph-relative coordinates.
@@ -4217,7 +4432,11 @@ begin
           TSkSamplingOptions.High)
       else if FLayout[I].Placeholders[J].Para <> nil then
         FLayout[I].Placeholders[J].Para.Paint(ACanvas,
-          ImgRect.Left, ImgRect.Top);
+          ImgRect.Left, ImgRect.Top)
+      else if FLayout[I].Placeholders[J].Math <> nil then
+        RhoMathDraw(ACanvas, FLayout[I].Placeholders[J].Math,
+          ImgRect.Left, ImgRect.Top,
+          FLayout[I].Placeholders[J].MathSize, FTextColor);
     end;
 
     // The Copy button floats over the code it belongs to, so it paints last.

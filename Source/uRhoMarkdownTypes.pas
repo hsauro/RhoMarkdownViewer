@@ -33,8 +33,13 @@ type
   // bkAlignBlock is a pure container: an HTML <p align=..> / <div align=..>
   // wrapper, holding its content in Children and contributing only an alignment.
   // Like bkQuote it is NOT a leaf and must never reach the viewer's flat layout.
+  // bkMath is display math: a ```math fence or a $$..$$ block. Text is the
+  // LaTeX source, kept verbatim so it can still be shown as literal text when
+  // the math engine is not deployed (see uRhoMarkdownMath - the whole feature
+  // degrades rather than failing).
   TMarkDownBlockKind = (bkParagraph, bkHeading, bkQuote, bkListItem,
-    bkCodeBlock, bkRule, bkTable, bkImage, bkFrontMatter, bkAlignBlock);
+    bkCodeBlock, bkRule, bkTable, bkImage, bkFrontMatter, bkAlignBlock,
+    bkMath);
 
   // Horizontal alignment. maDefault means "not specified here" and defers to
   // whatever encloses it (an alignment container) or, failing that, to the
@@ -77,6 +82,14 @@ type
     // that sentinel is what lets a per-image attribute override a document-wide
     // default, the same way TAlphaColors.Null works for colours.
     ImgAlign: TMarkDownAlign;
+    // Inline math: Text is the LaTeX source (NOT rendered text), which is also
+    // what gets shown literally when the math engine is unavailable. Unlike an
+    // image this keeps a full SourceMap over Text, so either rendering - the
+    // formula or the fallback - copies back as correct markdown.
+    IsMath: Boolean;
+    // $$..$$ inline: display style (limits above and below) rather than the
+    // inline style $..$ gets.
+    MathDisplay: Boolean;
     // Maps each character of Text to its 0-based document offset, with one
     // trailing entry for the position just past the last character (same shape
     // as TMarkDownBlock.SourceMap). Empty when the token was parsed without a

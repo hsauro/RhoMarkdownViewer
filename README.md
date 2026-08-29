@@ -44,10 +44,11 @@ See [Differences from the VCL original](#differences-from-the-vcl-original).
 - `Source/uRhoMarkdownParser.pas` — markdown-to-block parsing
 - `Source/uRhoMarkdownHighlight.pas` — pluggable code-block syntax highlighters and their registry
 - `Source/uRhoMarkdownHtml.pas` — HTML export helpers
+- `Source/uRhoMarkdownMath.pas` — optional LaTeX math engine binding (see [Math](#math-latex))
 - `Source/uRhoMarkdownViewerReg.pas` — design-time `Register`
 - `Packages/RhoMarkdownViewer.dpk` — runtime package
 - `Packages/dclRhoMarkdownViewer.dpk` — design-time package
-- `Demo/` — headless-friendly sample project and the `sample.md` rendering corpus
+- `Demo/` — headless-friendly sample project, the `sample.md` rendering corpus, and `math.md`
 - `MDViewerEditor/` — a live side-by-side editor + preview demo
 - `Tools/MarkdownRender/` — a headless tool that renders a markdown file to a PNG
 - `Tests/` — a console DUnitX test suite for the non-visual layer
@@ -74,6 +75,7 @@ Supported rendering includes:
 - Fenced code blocks — backtick or tilde (`~~~`) fences, of any length, so a block can itself contain a fence
 - **Indented code blocks** (four-space, no fence)
 - Syntax highlighting of fenced code blocks for 25+ languages (configurable via `SyntaxColors`)
+- **LaTeX math** — `$x^2$` inline, `$$…$$` blocks, and code fences tagged `math`, typeset natively (optional; see [Math](#math-latex))
 - Block quotes — **including nested quotes and quotes that contain lists, headings, and code blocks**
 - Horizontal rules
 - Ordered and unordered lists — both GFM ordered delimiters, `1.` and `1)`
@@ -529,6 +531,113 @@ layout never performs network I/O.
 
 ---
 
+## Math (LaTeX)
+
+Formulas are typeset natively — no WebView, no MathJax, no browser:
+
+````markdown
+The roots of $ax^2+bx+c=0$ are given by
+
+$$
+\frac{-b \pm \sqrt{b^2-4ac}}{2a}
+$$
+
+```math
+\sum_{i=1}^{n} i = \frac{n(n+1)}{2}
+```
+````
+
+`$…$` is inline, `$$…$$` is display style (either inside a paragraph or as its
+own block), and a code fence tagged `math` is display math — GitHub's own
+spelling. Inline formulas sit on the text baseline; display blocks are centred.
+
+### It is optional, and it degrades
+
+Math is a specialist need, so **an application that does not want it deploys
+nothing extra and pays nothing**. The engine is loaded dynamically at first use,
+never linked. When it is absent — or `MathEnabled` is `False`, or the LaTeX does
+not parse — the formula renders as **its literal LaTeX source**, styled as code.
+Nothing is ever swallowed, and a document containing math still reads sensibly.
+
+To enable it, deploy beside the executable:
+
+| | |
+| :--- | :--- |
+| Windows | `ratex_ffi.dll` |
+| macOS | `libratex_ffi.dylib` |
+| both | `fonts\KaTeX_*.ttf` — all 20 faces |
+
+Both locations can be overridden, and availability queried:
+
+```pascal
+RhoSetMathLibraryPath('C:\MyApp\lib\ratex_ffi.dll');
+RhoSetMathFontDir('C:\MyApp\fonts');
+if not RhoMathAvailable then
+  ShowMessage(RhoMathLastError);
+```
+
+### Getting the binaries
+
+The **math support bundle** on this project's
+[Releases](../../releases) page contains everything above — the library for
+Windows and macOS, all 20 fonts, and the licence files — ready to unzip beside
+your executable. It is a separate download on purpose: an application that does
+not want math never fetches it.
+
+To build the library yourself instead, you need only the FFI crate of
+[RaTeX](https://github.com/erweixin/RaTeX):
+
+```
+git clone https://github.com/erweixin/RaTeX
+cd RaTeX
+cargo build --release -p ratex-ffi                                # Windows  -> target\release\ratex_ffi.dll
+cargo build --release -p ratex-ffi --target aarch64-apple-darwin  # macOS    -> libratex_ffi.dylib
+```
+
+The fonts are the `KaTeX_*.ttf` files in that repository's `fonts/` folder.
+Upstream RaTeX publishes releases for Android, iOS, Flutter, JVM, npm and a CLI,
+but **not** a plain desktop library, which is why the bundle here exists.
+
+**If you redistribute the bundle with your own application**, note that the two
+halves are under different licences: RaTeX itself is MIT, but the KaTeX fonts
+are under the **SIL Open Font License 1.1**. Keep `KaTeX-fonts-NOTICE.txt` and
+`SIL-OFL-1.1.txt` (both included in the bundle, and both in RaTeX's `licenses/`
+folder) with whatever you ship.
+
+### How it works
+
+The engine is [RaTeX](https://github.com/erweixin/RaTeX), a pure-Rust,
+KaTeX-compatible layout engine. It returns a display list — positioned glyphs,
+rules and paths in em units — which the viewer replays straight onto the Skia
+canvas, so a formula stays vector at any size.
+
+Laid-out formulas are cached in em units, so they are measured once per
+document and survive every resize and repaint.
+
+### Dollar signs in ordinary prose
+
+`$` is common in prose, so a span becomes math only when it really looks like
+one. None of these are touched:
+
+```markdown
+it costs $5 and $10, or US$100 and CA$200
+an escaped \$x\$ stays literal, and `$x^2$` in a code span stays code
+```
+
+The rules: no whitespace immediately inside a delimiter, no opening `$` directly
+after a letter or digit, no closing `$` directly before a digit, no backtick
+inside a span, and no line break inside one. A `$$` block must be closed, or it
+is left as ordinary text.
+
+### Selection, copy and export
+
+A formula copies as its LaTeX source, which is what you want to paste. HTML
+export emits `$…$` / `$$…$$` wrapped in `<span class="math">` and
+`<div class="math display">`, ready for a client-side KaTeX or MathJax; exported
+HTML cannot carry the display list, so it is not typeset here.
+
+---
+
 ## HTML export
 
 The current document can be exported to HTML. `AsHtml` returns a fragment;
@@ -676,8 +785,10 @@ to visible literal text — nothing is silently dropped.
 | HTML blocks | `<details>`, `<table>`, a bare `<div>` | Beyond the [inline HTML whitelist](#inline-html-whitelist) and the [`align` containers](#block-alignment-containers), block-level HTML renders literally. |
 | Lazy block-quote continuation | a `>` line continued on the next line without `>` | The continuation escapes the quote. Prefix every line with `>`. |
 
-Also out of scope, being neither CommonMark nor GFM: definition lists, math
-(`$…$`), admonition/alert blocks (`> [!NOTE]`), and custom directives.
+Also out of scope, being neither CommonMark nor GFM: definition lists,
+admonition/alert blocks (`> [!NOTE]`), and custom directives. **Math (`$…$`,
+`$$…$$`, and a `math` fence) *is* supported** — see [Math](#math-latex) — as an
+optional feature that falls back to showing the LaTeX source.
 
 Nested containers *are* supported — nested block quotes, lists and code blocks
 inside quotes, and multi-paragraph or code-bearing list items all render — as are

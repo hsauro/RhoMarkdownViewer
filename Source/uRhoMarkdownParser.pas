@@ -46,6 +46,15 @@ type
     class function IsClosingFence(const S: string; const AChar: Char;
       const ALen: Integer): Boolean; static;
     class function ExtractFenceLanguage(const S: string): string; static;
+    // True for the fence info strings that mean "this block is display math",
+    // not code: GitHub renders ```math that way.
+    class function IsMathFenceLanguage(const S: string): Boolean; static;
+    // Display math delimited by $$, either wholly on one line or spanning
+    // several. Only a CLOSED block is math - an unterminated $$ is declined so
+    // it falls through to ordinary text, the same rule the align container and
+    // the front-matter card use. NextLine is the first line past the block.
+    class function TryParseMathBlock(Lines: TStrings; const StartLine: Integer;
+      out Latex: string; out NextLine: Integer): Boolean; static;
     class procedure SplitTableRow(const Line: string; Cells: TStrings); static;
     class function TrimLeftOnly(const S: string): string; static;
     class function TryParseHeading(const Line: string; out Text: string;
@@ -688,6 +697,65 @@ begin
   end;
 end;
 
+class function TMarkDownBlockParser.IsMathFenceLanguage(const S: string): Boolean;
+var
+  T: string;
+begin
+  T := LowerCase(Trim(S));
+  Result := (T = 'math') or (T = 'latex') or (T = 'katex') or (T = 'tex');
+end;
+
+class function TMarkDownBlockParser.TryParseMathBlock(Lines: TStrings;
+  const StartLine: Integer; out Latex: string; out NextLine: Integer): Boolean;
+var
+  T, Body: string;
+  J: Integer;
+begin
+  Result := False;
+  Latex := '';
+  NextLine := StartLine;
+  if (StartLine < 0) or (StartLine >= Lines.Count) then
+    Exit;
+  T := Trim(Lines[StartLine]);
+  if Copy(T, 1, 2) <> '$$' then
+    Exit;
+
+  // One-line form: $$ x^2 $$. Needs at least both delimiters plus content.
+  if (Length(T) >= 5) and (Copy(T, Length(T) - 1, 2) = '$$') then
+  begin
+    Latex := Trim(Copy(T, 3, Length(T) - 4));
+    NextLine := StartLine + 1;
+    Exit(Latex <> '');
+  end;
+
+  // Multi-line form: the closing $$ is on a later line. Anything after the
+  // opening delimiter on the first line is already part of the formula.
+  Body := Trim(Copy(T, 3, MaxInt));
+  J := StartLine + 1;
+  while J < Lines.Count do
+  begin
+    T := Trim(Lines[J]);
+    if (Length(T) >= 2) and (Copy(T, Length(T) - 1, 2) = '$$') then
+    begin
+      T := Trim(Copy(T, 1, Length(T) - 2));
+      if T <> '' then
+      begin
+        if Body <> '' then
+          Body := Body + sLineBreak;
+        Body := Body + T;
+      end;
+      Latex := Body;
+      NextLine := J + 1;
+      Exit(Latex <> '');
+    end;
+    if Body <> '' then
+      Body := Body + sLineBreak;
+    Body := Body + T;
+    Inc(J);
+  end;
+  // Ran off the end with no closing delimiter: not math.
+end;
+
 class function TMarkDownBlockParser.ParseBlocks(Lines: TStrings;
   StartLine: Integer; MapSource: Boolean): TMarkDownBlockList;
 var
@@ -865,9 +933,25 @@ begin
       end;
       Block := NewBlock(bkCodeBlock, CodeText, BlockStartLine);
       Block.CodeLanguage := ExtractFenceLanguage(Lines[BlockStartLine]);
+      // A ```math fence is display math, not code - GitHub's own spelling for
+      // it. The language is left on the block so a host that does not deploy
+      // the math engine still knows what the fence said.
+      if IsMathFenceLanguage(Block.CodeLanguage) then
+        Block.Kind := bkMath;
       Result.Add(Block);
       if I < Lines.Count then
         Inc(I);
+      Continue;
+    end;
+
+    // Display math delimited by $$, either all on one line or spanning
+    // several. Only a CLOSED block is math: an unterminated $$ falls through to
+    // ordinary text, the same way an unterminated align container does.
+    if TryParseMathBlock(Lines, I, CodeText, Number) then
+    begin
+      CommitParagraph;
+      Result.Add(NewBlock(bkMath, CodeText, I));
+      I := Number;
       Continue;
     end;
 
@@ -1329,6 +1413,15 @@ begin
             Continue;
         bkTable:
           MapJoinedLines(Block, Map, 0, False);
+        bkMath:
+          // A ```math fence has the verbatim full-line layout MapJoinedLines
+          // expects. A $$ block does not (its delimiters may share a line with
+          // the formula), so it gets no map and copy falls back to plain text -
+          // which for math IS the LaTeX source, so nothing useful is lost.
+          if StartsWithFence(Lines[Block.SourceStartLine]) then
+            MapJoinedLines(Block, Map, 1, True)
+          else
+            Continue;
       else
         Continue; // bkRule has no mappable text
       end;
@@ -1371,6 +1464,61 @@ begin
   if Length(AMap) = Length(Text) + 1 then
     Token.SourceMap := AMap;
   Tokens.Add(Token);
+end;
+
+// An inline math token. Text is the LaTeX source, and it keeps a full source
+// map: unlike an image, the fallback rendering (when the math engine is not
+// deployed) shows that text literally, and either way a selection must copy
+// back as correct markdown.
+procedure AddMathRun(Tokens: TMarkDownInlineList; const Latex: string;
+  Display: Boolean; Style: TFontStyles; const AMap: TArray<Integer>);
+var
+  Token: TMarkDownInlineToken;
+begin
+  if Trim(Latex) = '' then
+    Exit;
+  Token := Default(TMarkDownInlineToken);
+  Token.Text := Latex;
+  Token.Style := Style;
+  Token.IsMath := True;
+  Token.MathDisplay := Display;
+  if Length(AMap) = Length(Latex) + 1 then
+    Token.SourceMap := AMap;
+  Tokens.Add(Token);
+end;
+
+// Is Text[AOpen..AClose] (a pair of single '$' delimiters) actually math?
+//
+// Prose is full of currency, so this is deliberately strict. Every rule here
+// earns its place against a real sentence:
+//
+//   "it costs $5 and $10"      no whitespace may sit just inside a delimiter
+//   "US$100 and CA$200"        an opening '$' may not follow a letter or digit,
+//                              and a closing '$' may not precede a digit
+//   "CA$200 ... `$x^2$`"       a span may not contain a backtick, or a stray
+//                              '$' pairs with one INSIDE a code span and eats
+//                              the prose between - the code span having already
+//                              been claimed by the branch above this one
+//
+// A span also may not cross a line break.
+function IsInlineMathSpan(const Text: string; const AOpen, AClose: Integer): Boolean;
+var
+  K: Integer;
+begin
+  Result := False;
+  if AClose <= AOpen + 1 then
+    Exit;                                   // nothing between the delimiters
+  if (AOpen > 1) and Text[AOpen - 1].IsLetterOrDigit then
+    Exit;
+  if CharInSet(Text[AOpen + 1], [#9, ' ']) or
+     CharInSet(Text[AClose - 1], [#9, ' ']) then
+    Exit;
+  for K := AOpen + 1 to AClose - 1 do
+    if CharInSet(Text[K], [#10, #13, '`']) then
+      Exit;
+  if (AClose < Length(Text)) and CharInSet(Text[AClose + 1], ['0'..'9']) then
+    Exit;
+  Result := True;
 end;
 
 // An inline image token. Text is the alt text (kept so the viewer can fall back
@@ -1950,7 +2098,7 @@ begin
     while I <= Length(Text) do
     begin
       if (Text[I] = '\') and (I < Length(Text)) and
-        CharInSet(Text[I + 1], ['\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!', '>', '~', '|', '^']) then
+        CharInSet(Text[I + 1], ['\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!', '>', '~', '|', '^', '$']) then
       begin
         Buffer := Buffer + Text[I + 1];
         if HasMap then
@@ -2020,6 +2168,41 @@ begin
             SubMap(Map, I, J - I - 1));
           I := J + 1;
           Continue;
+        end;
+      end;
+
+      // Inline math. $$..$$ inside a paragraph is display style (limits above
+      // and below), $..$ is inline style. Note this sits AFTER the code span
+      // branch, so `$x$` in backticks stays code, and after escape handling, so
+      // \$ is already a literal dollar by now. An unmatched or unconvincing
+      // '$' falls through to the buffer as ordinary text.
+      if Text[I] = '$' then
+      begin
+        if (I < Length(Text)) and (Text[I + 1] = '$') then
+        begin
+          J := PosEx('$$', Text, I + 2);
+          // A backtick inside means the closing '$$' is in a code span, which
+          // the branch above already claimed - see IsInlineMathSpan.
+          if (J > I + 2) and (Pos('`', Copy(Text, I + 2, J - I - 2)) = 0) then
+          begin
+            FlushBuffer;
+            AddMathRun(Tokens, Copy(Text, I + 2, J - I - 2), True, BaseStyle,
+              SubMap(Map, I + 1, J - I - 2));
+            I := J + 2;
+            Continue;
+          end;
+        end
+        else
+        begin
+          J := FindUnescaped('$', Text, I + 1);
+          if (J > I) and IsInlineMathSpan(Text, I, J) then
+          begin
+            FlushBuffer;
+            AddMathRun(Tokens, Copy(Text, I + 1, J - I - 1), False, BaseStyle,
+              SubMap(Map, I, J - I - 1));
+            I := J + 1;
+            Continue;
+          end;
         end;
       end;
 

@@ -140,6 +140,26 @@ type
     [Test]
     procedure ParseInlineLeavesUnmatchedShortcutLiteral;
     [Test]
+    procedure ParseInlineParsesInlineMath;
+    [Test]
+    procedure ParseInlineParsesDisplayMathSpan;
+    [Test]
+    procedure ParseInlineLeavesCurrencyAlone;
+    [Test]
+    procedure ParseInlineLeavesEscapedDollarLiteral;
+    [Test]
+    procedure ParseInlineMathDoesNotCrossCodeSpan;
+    [Test]
+    procedure ParseInlineMathKeepsSourceMap;
+    [Test]
+    procedure ParseBlocksParsesMathFence;
+    [Test]
+    procedure ParseBlocksParsesDollarMathBlock;
+    [Test]
+    procedure ParseBlocksParsesOneLineMathBlock;
+    [Test]
+    procedure ParseBlocksLeavesUnclosedMathBlockAsText;
+    [Test]
     procedure ParseInlineDetectsAutoLink;
     [Test]
     procedure ParseInlineEmitsHardLineBreakToken;
@@ -1640,6 +1660,243 @@ begin
   finally
     Tokens.Free;
     References.Free;
+  end;
+end;
+
+// $..$ becomes one math token carrying the LaTeX verbatim - the viewer needs
+// that source both to typeset it and to fall back to when the engine is absent.
+procedure TMarkDownParserTests.ParseInlineParsesInlineMath;
+var
+  Tokens: TMarkDownInlineList;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline('the root of $x^2+1=0$ here');
+  try
+    Assert.AreEqual<Integer>(3, Tokens.Count);
+    Assert.IsTrue(Tokens[1].IsMath);
+    Assert.IsFalse(Tokens[1].MathDisplay);
+    Assert.AreEqual('x^2+1=0', Tokens[1].Text);
+    Assert.IsFalse(Tokens[0].IsMath);
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// $$..$$ inside a paragraph is the same token in display style.
+procedure TMarkDownParserTests.ParseInlineParsesDisplayMathSpan;
+var
+  Tokens: TMarkDownInlineList;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline('see $$\int_0^1 x\,dx$$ above');
+  try
+    Assert.AreEqual<Integer>(3, Tokens.Count);
+    Assert.IsTrue(Tokens[1].IsMath);
+    Assert.IsTrue(Tokens[1].MathDisplay);
+    Assert.AreEqual('\int_0^1 x\,dx', Tokens[1].Text);
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// Prose is full of currency and none of it is math. Three separate guards are
+// at work here: whitespace just inside a delimiter ("$5 and $10"), an opening
+// '$' that follows a letter, and a closing '$' that precedes a digit
+// ("US$100 and CA$200").
+procedure TMarkDownParserTests.ParseInlineLeavesCurrencyAlone;
+var
+  Tokens: TMarkDownInlineList;
+  I: Integer;
+  All: string;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline(
+    'it costs $5 and $10, or US$100 and CA$200 today');
+  try
+    All := '';
+    for I := 0 to Tokens.Count - 1 do
+    begin
+      Assert.IsFalse(Tokens[I].IsMath);
+      All := All + Tokens[I].Text;
+    end;
+    Assert.AreEqual('it costs $5 and $10, or US$100 and CA$200 today', All);
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// An escaped \$ is a literal dollar and must never open math.
+procedure TMarkDownParserTests.ParseInlineLeavesEscapedDollarLiteral;
+var
+  Tokens: TMarkDownInlineList;
+  I: Integer;
+  All: string;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline('an escaped \$x\$ stays literal');
+  try
+    All := '';
+    for I := 0 to Tokens.Count - 1 do
+    begin
+      Assert.IsFalse(Tokens[I].IsMath);
+      All := All + Tokens[I].Text;
+    end;
+    Assert.AreEqual('an escaped $x$ stays literal', All);
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// A '$' must not pair with one INSIDE a code span. Without this guard the stray
+// '$' in "CA$200" reached the '$' in `$x^2$` and swallowed every word between
+// them - and because the result was a math token, that prose disappeared into a
+// formula rather than merely losing its styling.
+procedure TMarkDownParserTests.ParseInlineMathDoesNotCrossCodeSpan;
+var
+  Tokens: TMarkDownInlineList;
+  I: Integer;
+begin
+  Tokens := TMarkDownBlockParser.ParseInline('CA$200 and `$x^2$` in code');
+  try
+    for I := 0 to Tokens.Count - 1 do
+    begin
+      Assert.IsFalse(Tokens[I].IsMath);
+      // The code span still parses as code, unaffected.
+      if Tokens[I].IsCode then
+        Assert.AreEqual('$x^2$', Tokens[I].Text);
+    end;
+  finally
+    Tokens.Free;
+  end;
+end;
+
+// A math token keeps a full per-character source map, unlike an image. That is
+// what lets a selection copy back as exact markdown whichever way the formula
+// was rendered.
+procedure TMarkDownParserTests.ParseInlineMathKeepsSourceMap;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+  Tokens: TMarkDownInlineList;
+  I: Integer;
+  Seen: Boolean;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  Seen := False;
+  try
+    Lines.Add('ab $x+y$ cd');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Tokens := TMarkDownBlockParser.ParseInline(Blocks[0].Text, nil,
+      Blocks[0].SourceMap);
+    try
+      for I := 0 to Tokens.Count - 1 do
+        if Tokens[I].IsMath then
+        begin
+          Seen := True;
+          Assert.AreEqual<Integer>(Length(Tokens[I].Text) + 1,
+            Length(Tokens[I].SourceMap));
+          // 'x' is at offset 4: "ab $" is four characters.
+          Assert.AreEqual<Integer>(4, Tokens[I].SourceMap[0]);
+        end;
+      Assert.IsTrue(Seen);
+    finally
+      Tokens.Free;
+    end;
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// GitHub spells display math as a ```math fence, so that becomes bkMath rather
+// than a code block - while keeping the language, which is what an application
+// without the math engine falls back to showing.
+procedure TMarkDownParserTests.ParseBlocksParsesMathFence;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('```math');
+    Lines.Add('E = mc^2');
+    Lines.Add('```');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkMath);
+    Assert.AreEqual('E = mc^2', Blocks[0].Text);
+    // A fenced block keeps its source map, so math copies back verbatim.
+    Assert.AreEqual<Integer>(Length(Blocks[0].Text) + 1,
+      Length(Blocks[0].SourceMap));
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksParsesDollarMathBlock;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('$$');
+    Lines.Add('\frac{a}{b}');
+    Lines.Add('$$');
+    Lines.Add('');
+    Lines.Add('After.');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(2, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkMath);
+    Assert.AreEqual('\frac{a}{b}', Blocks[0].Text);
+    Assert.IsTrue(Blocks[1].Kind = bkParagraph);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksParsesOneLineMathBlock;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('$$ x = 1 $$');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(1, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkMath);
+    Assert.AreEqual('x = 1', Blocks[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// Only a CLOSED block is math - the same rule the align container and the
+// front-matter card follow, so an unterminated delimiter degrades to text
+// rather than swallowing the rest of the document.
+procedure TMarkDownParserTests.ParseBlocksLeavesUnclosedMathBlockAsText;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+  I: Integer;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('$$');
+    Lines.Add('x = 1');
+    Lines.Add('');
+    Lines.Add('More prose.');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    for I := 0 to Blocks.Count - 1 do
+      Assert.IsFalse(Blocks[I].Kind = bkMath);
+  finally
+    Blocks.Free;
+    Lines.Free;
   end;
 end;
 

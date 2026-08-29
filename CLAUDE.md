@@ -20,7 +20,7 @@ Done and verified:
 - `Source/` — `uRhoMarkdownTypes.pas`, `uRhoMarkdownParser.pas`,
   `uRhoMarkdownHighlight.pas`, `uRhoMarkdownHtml.pas`: no FMX or VCL dependency
   (5,757 lines).
-- `Tests/RhoMarkdownTests.dpr` — **189 tests, 189 passing.**
+- `Tests/RhoMarkdownTests.dpr` — **199 tests, 199 passing.**
 - `Source/uRhoMarkdownViewer.pas` — `TRhoMarkdownViewer`, the control:
   `TSkPaintBox` + owned `TScrollBar`, parse-on-change, cached display list,
   published property surface, and the full inline layout pass.
@@ -77,6 +77,7 @@ said as much. Tested empirically; the failing cases live in
 | ATX closing sequence `## H ##` | ✅ **fixed 2026-08-28** — stripped when whitespace precedes the run |
 | Escaped pipe in a table cell | ✅ **fixed 2026-08-28** — see the Tables section |
 | Shortcut reference link `[foo]` | ✅ **fixed 2026-08-28** — only when a definition matches |
+| LaTeX math `$x$` / `$$…$$` / ```` ```math ```` | ✅ **added 2026-08-28** — optional RaTeX engine; see below |
 | Link with title | ✅ works |
 | `***` / `___` breaks | ✅ work |
 
@@ -221,8 +222,8 @@ Deliberately out of scope from the v1 decision: in-place editing, undo/redo,
 caret navigation.
 
 **Ahead of the original:** dark theme, designable `SyntaxColors`, inline images,
-true super/subscript baselines, emoji/symbol font fallback, Antimony, the
-headless render tool, and cross-platform rendering.
+true super/subscript baselines, emoji/symbol font fallback, Antimony, LaTeX math
+(see below), the headless render tool, and cross-platform rendering.
 
 **Nothing on the original backlog is outstanding.** Known limitations, all
 deliberate and explained in their sections:
@@ -392,7 +393,8 @@ Mirror RhoEditor:
 
 - `Source/` — `uRhoMarkdownViewer.pas` (the control), `uRhoMarkdownTypes.pas`,
   `uRhoMarkdownParser.pas`, `uRhoMarkdownHighlight.pas`, `uRhoMarkdownHtml.pas`,
-  and `uRhoMarkdownViewerReg.pas` (`Register` only).
+  `uRhoMarkdownMath.pas` (the optional LaTeX engine binding), and
+  `uRhoMarkdownViewerReg.pas` (`Register` only).
 - `Packages/` — `RhoMarkdownViewer.dpk` (runtime, `{$RUNONLY}`) and
   `dclRhoMarkdownViewer.dpk` (design-time, `{$DESIGNONLY}`, requires the runtime
   package + `designide`). Keep `Register` out of the runtime package so an
@@ -518,7 +520,7 @@ The component must be installable and fully designable.
 
 ## Tests
 
-`Tests/RhoMarkdownTests.dpr` — **189 tests, all passing.** Console app, no FMX or
+`Tests/RhoMarkdownTests.dpr` — **199 tests, all passing.** Console app, no FMX or
 Skia dependency, so the parse layer stays testable without a UI.
 
 ```
@@ -859,6 +861,16 @@ rounding — `$100.00` renders as `$100.0` over `0`. `LayoutTable` uses
 Cell tokens are **not** cached on a block (a cell is not a block), so
 `BuildCellText` owns the `TMarkDownInlineList` it parses and must free it.
 
+⚠️ **A cell needs its own placeholder list, and `BuildCellText` must resolve the
+rects.** A cell builds its own paragraph, so anything spliced into the text flow
+as a placeholder — an inline image, a raised super/subscript run, a formula —
+needs `TRhoTableCell.Placeholders` and a `GetRectsForPlaceholders` pass, exactly
+as `BuildInline` does for a block. `BuildCellText` originally discarded what
+`BuildTokens` handed back, so the slot was reserved and **nothing was ever drawn
+into it**: `H~2~O` and `x^2^` in a cell rendered as blank gaps, and the column
+still sized itself around the invisible content. Fixed 2026-08-28 when math made
+it obvious; `PaintTableText` paints them after the cell's text.
+
 ⚠️ **`\|` is resolved in `CellText`, at split time — not left to `ParseRuns`.**
 `SplitTableRow` skips an escaped pipe when splitting (so the row keeps the right
 column count), and `CellText` then replaces it with a real `|`. Deferring the
@@ -1082,6 +1094,137 @@ skewed — hence `Emit`'s `AToBuilder` parameter, which updates `PlainText` /
 `links` mode: a link placed after an inline image still hit-tests exactly.
 
 An unloadable inline image falls back to italic alt text.
+
+### LaTeX math — optional, and it degrades
+
+`$x^2$` inline, `$$…$$` as a block, and GitHub's ```` ```math ```` fence render
+as typeset formulas, drawn straight onto the Skia canvas.
+
+**The engine is [RaTeX](../../Rust_Libraries/RaTeX-main)** — pure Rust,
+KaTeX-compatible, no JS and no WebView. It does not rasterize: it returns a
+*display list* (positioned glyphs, rules and paths, all in **em** units) which
+`uRhoMarkdownMath.pas` decodes and replays onto an `ISkCanvas`. The binding is
+ported from the `RenderLaTeX` project's `uRaTeX.pas`; that project is the place
+to experiment with the engine on its own.
+
+🔴 **It is OPTIONAL, and that is the whole design.** The shared library is
+loaded with `dlopen`/`LoadLibrary` at first use, never linked, so an application
+that does not want math ships neither the library nor the fonts and pays
+nothing. When either is missing — or `MathEnabled` is False, or the LaTeX does
+not parse — the formula renders as **its literal LaTeX source**, styled as a
+code run. Nothing is ever swallowed. Do not turn this into a load-time
+dependency.
+
+To deploy math, put beside the executable:
+
+| | |
+|---|---|
+| Windows | `ratex_ffi.dll` |
+| macOS | `libratex_ffi.dylib` |
+| both | `fonts\KaTeX_*.ttf` — **all 20 faces** |
+
+Both locations are overridable: `RhoSetMathLibraryPath` and `RhoSetMathFontDir`,
+global procedures in `uRhoMarkdownMath` (not properties — the same reasoning as
+`ApplyTheme`). `RhoMathAvailable` reports the verdict.
+
+**Building the library.** Only the `ratex-ffi` crate is needed; the workspace's
+own rendering crates are irrelevant here because Skia does the drawing.
+
+```
+cd ..\..\Rust_Libraries\RaTeX-main
+cargo build --release -p ratex-ffi                                  # Windows
+cargo build --release -p ratex-ffi --target aarch64-apple-darwin    # macOS
+```
+
+⚠️ **The fonts are checked as well as the library**, and both must be present
+for `RhoMathAvailable` to say yes. A library with no fonts renders a field of
+`.notdef` boxes, which is worse than showing the LaTeX — hence the explicit
+probe for `KaTeX_Main-Regular.ttf`.
+
+⚠️ **macOS: the dylib is opened by absolute path** when it sits beside the
+executable (inside a bundle that is `Contents/MacOS/`), which sidesteps
+`install_name` and rpath entirely. Keep it that way.
+
+#### How it hangs off the existing machinery
+
+- **Inline math is a placeholder**, exactly like an inline image: one slot, one
+  position in the paragraph text, `BaselineOffset := HeightEm * FontSize` so it
+  sits on the text baseline with its depth below. `Emit(#$FFFC, …, False)` does
+  the bookkeeping without adding text — see the warning in `BuildTokens`.
+- **Block math is `bkMath`**, positioned like a block image (`MathRect`,
+  centred by convention, an enclosing `<div align>` still winning) and scaled
+  **down** to fit the content width, never up. `MathSize` records the size the
+  rect was measured at, because that fit-scaling means it is not always
+  `FontSize * MathBlockScale`.
+- **The layout cache is what makes this cheap.** `RhoMathLayout` is the
+  expensive call and its result is in em units — *width-independent* — so one
+  cached layout survives every resize and re-layout. It is dropped in `Reparse`,
+  which bounds it to one document.
+- 🔴 **The colour is baked in at layout time and is part of the cache key.**
+  RaTeX colours every display-list item as it lays out and offers no "unset", so
+  a draw-time default never applies — dark theme rendered black-on-black until
+  the colour moved into `TRatexOptions`. This matches the component's existing
+  rule that a colour change is a re-layout, not a repaint.
+- **Selection and search** treat a formula's `PlainText` as the LaTeX source, so
+  it copies as something useful. `CollectRangeRects` highlights a rendered
+  formula as **one rect** — there are no text runs to measure against. Markdown
+  copy slices the source as always, so `$x^2$` comes back verbatim.
+- **`AsHtml` emits `$…$` / `$$…$$` inside `<span class="math">` /
+  `<div class="math display">`** for a client-side KaTeX or MathJax to typeset.
+  Exported HTML cannot carry the display list, and we do not typeset to HTML.
+
+#### The `$` delimiter is the hard part
+
+Prose is full of currency, so `IsInlineMathSpan` is deliberately strict. Each
+rule is there for a sentence that broke without it:
+
+| Sentence | Rule |
+|---|---|
+| `it costs $5 and $10` | no whitespace immediately inside a delimiter |
+| `US$100 and CA$200` | an opening `$` may not follow a letter or digit; a closing `$` may not precede a digit |
+| ``CA$200 … `$x^2$` `` | a span may not contain a backtick |
+
+🔴 **That last one is not cosmetic.** The code-span branch runs *before* the
+math branch, so a stray `$` could otherwise pair with a `$` **inside** an
+already-claimed code span and swallow every word between them — and because the
+result was a math token, the prose vanished into a formula rather than merely
+losing its styling. Caught in the first render of `Demo/math.md`; guarded by
+`ParseInlineMathDoesNotCrossCodeSpan`.
+
+A `$$` block is only math when it is **closed**, like the align container and
+the front-matter card — an unterminated `$$` falls through to text rather than
+swallowing the rest of the document.
+
+🔴 **The no-space-inside-the-delimiters rule is a decision, not an oversight —
+do not soften it.** `$ y = x^2$` deliberately does not render; `$y=x^2$` is the
+spelling. This is Pandoc's rule and (very probably) GitHub's, so a document
+renders the same in all three. KaTeX's `renderMathInElement` and MathJax's
+defaults are more permissive, which is why a file can look fine in another
+previewer and not here.
+
+Relaxing the **leading** half alone would be safe — the *trailing* half is what
+actually rejects `it costs $5 and $10` — but it was **rejected by the user
+(2026-08-28)**: `$ y = x^2$` working while `$ y = x^2 $` still failed is more
+confusing than a symmetric rule, and the asymmetry diverges from Pandoc in a way
+nobody would predict. Relaxing **both** is the one that really breaks: in
+`the price is $5 and the cost is $x` the closing `$` is followed by a letter, so
+the digit guard misses it and only the trailing-space rule keeps a sentence
+about prices from becoming a formula.
+
+**Source maps:** a ```` ```math ```` fence gets the normal fenced-block map, so
+it copies back verbatim. A `$$` block gets **none** (its delimiters may share a
+line with the formula), so copy falls back to plain text — which for math *is*
+the LaTeX, so nothing useful is lost. An inline math token keeps a full
+per-character map, unlike an image, precisely because the fallback rendering
+shows that text.
+
+`Demo/math.md` is the corpus, and it deliberately carries the currency and
+code-span cases alongside the formulas. Verify with the render tool — with and
+without the library beside it, since the fallback is half the feature:
+
+```
+Tools\MarkdownRender\MarkdownRender.exe Demo\math.md out.png 760 14 [dark|select]
+```
 
 ### Reference links — three forms, and the order matters
 

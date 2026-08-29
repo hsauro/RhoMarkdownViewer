@@ -51,6 +51,7 @@ contains
   uRhoMarkdownHighlight in '..\Source\uRhoMarkdownHighlight.pas',
   uRhoMarkdownParser in '..\Source\uRhoMarkdownParser.pas',
   uRhoMarkdownHtml in '..\Source\uRhoMarkdownHtml.pas',
+  uRhoMarkdownMath in '..\Source\uRhoMarkdownMath.pas',
   uRhoMarkdownViewer in '..\Source\uRhoMarkdownViewer.pas';
 
 end.

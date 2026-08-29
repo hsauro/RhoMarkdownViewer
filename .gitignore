@@ -82,3 +82,16 @@ Demo/commonmark-gaps.md
 Docs/
 MDViewerEditor/Win64
 
+
+# Math engine, deployed beside a tool or demo exe so math renders there. Built
+# from the RaTeX Rust workspace and shipped by the application, not by the repo.
+**/fonts/KaTeX_*.ttf
+ratex_ffi.dll
+libratex_ffi.dylib
+Tools/MarkdownRender/*.png
+
+# Release-asset staging (Dist/). The bundle's authored parts - its README and
+# the licence files that must travel with it - are tracked; the binaries it is
+# assembled from are not, and neither is the zip: a release asset is stored by
+# the release, not by the repo.
+Dist/*.zip

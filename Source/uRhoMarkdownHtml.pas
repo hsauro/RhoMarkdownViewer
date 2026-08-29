@@ -37,6 +37,17 @@ begin
   if Token.LineBreak then
     Exit('<br />');
 
+  // Inline math keeps its delimiters and is marked up for a client-side
+  // typesetter (KaTeX / MathJax auto-render), which is the only way exported
+  // HTML can show a formula - the display list this viewer draws from has no
+  // HTML equivalent. Escaped, so a page without a typesetter shows the LaTeX.
+  if Token.IsMath then
+  begin
+    if Token.MathDisplay then
+      Exit('<span class="math display">$$' + HtmlEscape(Token.Text) + '$$</span>');
+    Exit('<span class="math inline">$' + HtmlEscape(Token.Text) + '$</span>');
+  end;
+
   Result := HtmlEscape(Token.Text);
   if Token.IsCode then
     Result := '<code>' + Result + '</code>';
@@ -247,6 +258,14 @@ var
         bkCodeBlock, bkFrontMatter:
           Builder.Append('<pre><code>' + HtmlEscape(C.Text) +
             '</code></pre>'#10);
+        bkMath:
+          // Display math. The LaTeX is emitted between $$ delimiters inside a
+          // marked div: a page that loads KaTeX or MathJax auto-render typesets
+          // it, and one that does not still shows the source. We do not attempt
+          // to typeset to HTML ourselves - that is the viewer's job, and it
+          // needs the math engine.
+          Builder.Append('<div class="math display">$$' + HtmlEscape(C.Text) +
+            '$$</div>'#10);
         bkQuote:
           begin
             Builder.Append('<blockquote>'#10);
@@ -318,6 +337,14 @@ var
         bkCodeBlock, bkFrontMatter:
           Builder.Append('<pre><code>' + HtmlEscape(B.Text) +
             '</code></pre>'#10);
+        bkMath:
+          // Display math. The LaTeX is emitted between $$ delimiters inside a
+          // marked div: a page that loads KaTeX or MathJax auto-render typesets
+          // it, and one that does not still shows the source. We do not attempt
+          // to typeset to HTML ourselves - that is the viewer's job, and it
+          // needs the math engine.
+          Builder.Append('<div class="math display">$$' + HtmlEscape(B.Text) +
+            '$$</div>'#10);
         bkRule:
           Builder.Append('<hr />'#10);
         bkImage:
