@@ -58,7 +58,7 @@ See [Differences from the VCL original](#differences-from-the-vcl-original).
 
 Supported rendering includes:
 
-- Headings (`#` style and `===` / `---` setext underlines)
+- Headings (`#` style and `===` / `---` setext underlines), with optional closing sequences (`## Heading ##`)
 - Underline rule beneath H1/H2 headings, with an independent, disableable colour (`HeadingRuleColor`; `TAlphaColors.Null` to switch it off)
 - Paragraphs
 - Bold and italic spans
@@ -69,7 +69,7 @@ Supported rendering includes:
 - HTML entities (named, decimal, and hex)
 - Automatic links (`http://`, `https://`, `www.`)
 - Angle-bracket URL and email autolinks
-- Reference-style links
+- Reference-style links — full `[text][ref]`, collapsed `[ref][]`, and shortcut `[ref]`
 - Inline code
 - Fenced code blocks — backtick or tilde (`~~~`) fences, of any length, so a block can itself contain a fence
 - **Indented code blocks** (four-space, no fence)
@@ -81,7 +81,7 @@ Supported rendering includes:
 - **Multi-paragraph list items and code blocks nested inside a list item**
 - Task lists with checked and unchecked boxes
 - Clickable task checkboxes that toggle the source (`AllowTaskToggle`)
-- Pipe tables with left, center, and right alignment
+- Pipe tables with left, center, and right alignment, and escaped pipes (`\|`) as cell content
 - Inline formatting and links inside table cells
 - Images — **block and true inline**, scaled with alt-text fallback
 - **Image alignment** — document-wide (`ImageAlign`), per image (`<img align="center">`), or by an enclosing alignment container
@@ -671,13 +671,10 @@ to visible literal text — nothing is silently dropped.
 | Construct | Example | Behaviour |
 | :--- | :--- | :--- |
 | Multi-backtick code spans | ``` ``code with ` inside`` ``` | Only single-backtick spans are parsed. |
-| ATX closing sequences | `### Heading ###` | Trailing hashes are shown rather than stripped. |
 | Angle-bracket link destinations | `[a](<url with spaces>)` | The destination is cut at the first space. |
-| Shortcut reference links | `[foo]` | Renders literally. Collapsed `[foo][]` and full `[foo][bar]` both work. |
 | Footnotes | `[^1]` | GFM extension; renders literally. |
 | HTML blocks | `<details>`, `<table>`, a bare `<div>` | Beyond the [inline HTML whitelist](#inline-html-whitelist) and the [`align` containers](#block-alignment-containers), block-level HTML renders literally. |
 | Lazy block-quote continuation | a `>` line continued on the next line without `>` | The continuation escapes the quote. Prefix every line with `>`. |
-| Escaped pipes in tables | `\|` inside a cell | Treated as a column separator. |
 
 Also out of scope, being neither CommonMark nor GFM: definition lists, math
 (`$…$`), admonition/alert blocks (`> [!NOTE]`), and custom directives.

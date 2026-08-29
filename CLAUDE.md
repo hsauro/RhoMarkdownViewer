@@ -20,7 +20,7 @@ Done and verified:
 - `Source/` — `uRhoMarkdownTypes.pas`, `uRhoMarkdownParser.pas`,
   `uRhoMarkdownHighlight.pas`, `uRhoMarkdownHtml.pas`: no FMX or VCL dependency
   (5,757 lines).
-- `Tests/RhoMarkdownTests.dpr` — **185 tests, 185 passing.**
+- `Tests/RhoMarkdownTests.dpr` — **189 tests, 189 passing.**
 - `Source/uRhoMarkdownViewer.pas` — `TRhoMarkdownViewer`, the control:
   `TSkPaintBox` + owned `TScrollBar`, parse-on-change, cached display list,
   published property surface, and the full inline layout pass.
@@ -74,8 +74,21 @@ said as much. Tested empirically; the failing cases live in
 | **Fence length / `~~~` fences** | ✅ **fixed 2026-08-09** — see below |
 | Ordered list starting at N | ✅ works |
 | Ordered list with `)` | ✅ **fixed 2026-08-28** — `1)` is a marker; see below |
+| ATX closing sequence `## H ##` | ✅ **fixed 2026-08-28** — stripped when whitespace precedes the run |
+| Escaped pipe in a table cell | ✅ **fixed 2026-08-28** — see the Tables section |
+| Shortcut reference link `[foo]` | ✅ **fixed 2026-08-28** — only when a definition matches |
 | Link with title | ✅ works |
 | `***` / `___` breaks | ✅ work |
+
+**ATX closing sequences — done.** `StripClosingHashes` runs at the end of
+`TryParseHeading`. A trailing run of `#` closes the heading only when preceded
+by whitespace (or when it is the entire content), so `### foo#` and `### a#b`
+keep their hashes; a run preceded by a backslash falls out of the same test and
+is left for `ParseRuns` to unescape. ⚠️ **No source-map change was needed** —
+`MapAtxHeading` slices from the content start for `Length(Text)` characters, so
+a shortened `Text` stays contiguous and valid. Side benefit: anchor slugs are
+built from rendered heading text, so `### Setup ###` now slugs as `setup`
+instead of carrying the hashes' trailing space.
 
 **Indented code blocks — done.** `ParseBlocks` detects a run of 4-space (or tab)
 indented lines and emits `bkCodeBlock` (plain, no language), dedenting by four
@@ -505,7 +518,7 @@ The component must be installable and fully designable.
 
 ## Tests
 
-`Tests/RhoMarkdownTests.dpr` — **185 tests, all passing.** Console app, no FMX or
+`Tests/RhoMarkdownTests.dpr` — **189 tests, all passing.** Console app, no FMX or
 Skia dependency, so the parse layer stays testable without a UI.
 
 ```
@@ -846,6 +859,16 @@ rounding — `$100.00` renders as `$100.0` over `0`. `LayoutTable` uses
 Cell tokens are **not** cached on a block (a cell is not a block), so
 `BuildCellText` owns the `TMarkDownInlineList` it parses and must free it.
 
+⚠️ **`\|` is resolved in `CellText`, at split time — not left to `ParseRuns`.**
+`SplitTableRow` skips an escaped pipe when splitting (so the row keeps the right
+column count), and `CellText` then replaces it with a real `|`. Deferring the
+unescape to inline parsing looks equivalent and passes in ordinary prose, but
+fails inside a **code span**, where escapes are correctly not processed — a cell
+holding `` `a \| b` `` renders with the backslash showing. GFM specifies this
+ordering: the pipe escape is resolved *before* inline parsing. The symptom is
+subtle enough that a unit test on the split alone will not catch it; the case
+lives in `Demo/sample.md` in both code-span and plain form.
+
 **Selection flattens a table rather than complicating `TRhoDocPos`.** The block's
 `PlainText` is every cell joined with a TAB between cells and a newline between
 rows, and each `TRhoTableCell` records its `TextStart`/`TextLen` slice of it. So
@@ -1059,6 +1082,20 @@ skewed — hence `Emit`'s `AToBuilder` parameter, which updates `PlainText` /
 `links` mode: a link placed after an inline image still hit-tests exactly.
 
 An unloadable inline image falls back to italic alt text.
+
+### Reference links — three forms, and the order matters
+
+Full `[text][ref]`, collapsed `[ref][]`, and shortcut `[ref]` all resolve, and
+all three live in the `[` branch of `ParseRuns`.
+
+🔴 **The shortcut arm must stay last.** It matches a bare `[label]` — the most
+permissive shape of the three — so putting it before the inline (`](`) or
+reference (`][`) arms would have it swallow their opening bracket. It is also
+gated twice: the next character must not be `(` or `[`, and
+`References.Values[...]` must actually hold a URL. That second gate is what
+keeps ordinary bracketed prose (`[TODO] fix this`) literal, and it is
+CommonMark's own rule rather than a heuristic of ours —
+`ParseInlineLeavesUnmatchedShortcutLiteral` guards it.
 
 ### Inline HTML whitelist
 

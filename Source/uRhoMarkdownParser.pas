@@ -252,6 +252,18 @@ begin
   Result := (ReferenceName <> '') and (Url <> '');
 end;
 
+// A cell's text as the reader should see it: trimmed, with the pipe escape
+// resolved.
+//
+// GFM resolves '\|' BEFORE inline parsing, and that ordering is the whole
+// point - leaving the backslash for ParseRuns to strip works in ordinary prose
+// but not inside a code span, where escapes are (correctly) not processed. A
+// cell such as `a \| b` would then render with the backslash showing.
+function CellText(const ARaw: string): string;
+begin
+  Result := StringReplace(Trim(ARaw), '\|', '|', [rfReplaceAll]);
+end;
+
 class procedure TMarkDownBlockParser.SplitTableRow(const Line: string;
   Cells: TStrings);
 var
@@ -263,17 +275,23 @@ begin
   S := Trim(Line);
   if (S <> '') and (S[1] = '|') then
     Delete(S, 1, 1);
-  if (S <> '') and (S[Length(S)] = '|') then
+  // A trailing '\|' is an escaped pipe in the last cell, not the row's closing
+  // delimiter.
+  if (S <> '') and (S[Length(S)] = '|') and
+     ((Length(S) < 2) or (S[Length(S) - 1] <> '\')) then
     Delete(S, Length(S), 1);
 
   Start := 1;
   for I := 1 to Length(S) do
-    if S[I] = '|' then
+    // '\|' is a literal pipe inside a cell, not a column separator, so the row
+    // keeps the right number of columns. CellText then turns it into a real
+    // '|' - see there for why that cannot be left to ParseRuns.
+    if (S[I] = '|') and ((I = 1) or (S[I - 1] <> '\')) then
     begin
-      Cells.Add(Trim(Copy(S, Start, I - Start)));
+      Cells.Add(CellText(Copy(S, Start, I - Start)));
       Start := I + 1;
     end;
-  Cells.Add(Trim(Copy(S, Start, MaxInt)));
+  Cells.Add(CellText(Copy(S, Start, MaxInt)));
 end;
 
 class function TMarkDownBlockParser.IsPipeTableRow(
@@ -407,6 +425,30 @@ begin
   end;
 end;
 
+// CommonMark's optional ATX closing sequence: `## Heading ##` shows "Heading".
+// The run of '#' only closes the heading when it is preceded by whitespace (or
+// is the whole content), so `## a#b` and `## foo#` keep their hashes. A run
+// preceded by a backslash is an escape and is left for ParseRuns to unescape,
+// which falls out of the same test.
+//
+// AText is already right-trimmed, and the caller's source map slices from the
+// content start for Length(Text) characters, so shortening it here keeps the
+// map contiguous and valid - no mapping change is needed.
+procedure StripClosingHashes(var AText: string);
+var
+  K: Integer;
+begin
+  K := Length(AText);
+  while (K >= 1) and (AText[K] = '#') do
+    Dec(K);
+  if K = Length(AText) then
+    Exit;                       // no trailing run at all
+  if K = 0 then
+    AText := ''                 // the content is nothing but hashes
+  else if CharInSet(AText[K], [' ', #9]) then
+    AText := TrimRight(Copy(AText, 1, K));
+end;
+
 class function TMarkDownBlockParser.TryParseHeading(const Line: string;
   out Text: string; out Level: Integer): Boolean;
 var
@@ -422,7 +464,10 @@ begin
   Result := (Level > 0) and (I <= Length(T)) and
     CharInSet(T[I], [' ', #9]);
   if Result then
+  begin
     Text := Trim(Copy(T, I + 1, MaxInt));
+    StripClosingHashes(Text);
+  end;
 end;
 
 class function TMarkDownBlockParser.TryParseListItem(const Line: string;
@@ -2156,6 +2201,28 @@ begin
               I := K + 1;
               Continue;
             end;
+          end;
+        end;
+
+        // Shortcut reference link: `[foo]` with no following '(' or '[', taking
+        // the label itself as the reference name. Deliberately last, so the
+        // inline and collapsed/full forms above still win, and it only fires
+        // when a matching definition exists - ordinary bracketed prose such as
+        // "[TODO] fix this" has none and is left alone, which is also
+        // CommonMark's rule.
+        if (References <> nil) and (J > I) and
+           ((J = Length(Text)) or not CharInSet(Text[J + 1], ['(', '['])) then
+        begin
+          LinkText := Copy(Text, I + 1, J - I - 1);
+          LinkUrl := References.Values[LowerCase(Trim(LinkText))];
+          if LinkUrl <> '' then
+          begin
+            FlushBuffer;
+            ParseRuns(LinkText, References, BaseStyle, IsHighlighted,
+              IsSuperscript, IsSubscript, LinkUrl, Tokens,
+              SubMap(Map, I, J - I - 1));
+            I := J + 1;
+            Continue;
           end;
         end;
       end;

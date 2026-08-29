@@ -12,6 +12,8 @@ type
     [Test]
     procedure ParsesHeading;
     [Test]
+    procedure ParsesHeadingClosingSequence;
+    [Test]
     procedure ParsesNestedOrderedListItem;
     [Test]
     procedure ParsesParenOrderedListItem;
@@ -134,6 +136,10 @@ type
     [Test]
     procedure ParseInlineResolvesReferenceLink;
     [Test]
+    procedure ParseInlineResolvesShortcutReferenceLink;
+    [Test]
+    procedure ParseInlineLeavesUnmatchedShortcutLiteral;
+    [Test]
     procedure ParseInlineDetectsAutoLink;
     [Test]
     procedure ParseInlineEmitsHardLineBreakToken;
@@ -169,6 +175,8 @@ type
     procedure IsPipeTableRowDetectsPipe;
     [Test]
     procedure SplitTableRowSplitsCells;
+    [Test]
+    procedure SplitTableRowKeepsEscapedPipe;
     [Test]
     procedure TryParseImageParsesAltAndUrl;
     [Test]
@@ -231,6 +239,38 @@ uses
   System.UITypes,
   uRhoMarkdownTypes,
   uRhoMarkdownParser;
+
+// CommonMark's optional closing sequence. The run of '#' only closes the
+// heading when whitespace precedes it, so an interior or word-joined '#' stays.
+procedure TMarkDownParserTests.ParsesHeadingClosingSequence;
+var
+  Text: string;
+  Level: Integer;
+begin
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('### Heading ###', Text,
+    Level));
+  Assert.AreEqual<Integer>(3, Level);
+  Assert.AreEqual('Heading', Text);
+
+  // The closing run need not match the opening one in length.
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('## Heading #####', Text,
+    Level));
+  Assert.AreEqual('Heading', Text);
+
+  // Content that is nothing but hashes leaves an empty heading.
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('## ##', Text, Level));
+  Assert.AreEqual('', Text);
+
+  // Not a closing sequence: no whitespace before the run.
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('### foo#', Text, Level));
+  Assert.AreEqual('foo#', Text);
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('### a#b', Text, Level));
+  Assert.AreEqual('a#b', Text);
+
+  // A plain heading is unaffected.
+  Assert.IsTrue(TMarkDownBlockParser.TryParseHeading('# Plain', Text, Level));
+  Assert.AreEqual('Plain', Text);
+end;
 
 procedure TMarkDownParserTests.ParsesHeading;
 var
@@ -1549,6 +1589,60 @@ begin
   end;
 end;
 
+// Shortcut form: `[foo]` with a matching definition, no second bracket pair.
+procedure TMarkDownParserTests.ParseInlineResolvesShortcutReferenceLink;
+var
+  References: TStringList;
+  Tokens: TMarkDownInlineList;
+begin
+  References := TStringList.Create;
+  Tokens := nil;
+  try
+    References.Values['ref'] := 'https://example.com';
+    Tokens := TMarkDownBlockParser.ParseInline('[ref]', References);
+    Assert.AreEqual<Integer>(1, Tokens.Count);
+    Assert.AreEqual('ref', Tokens[0].Text);
+    Assert.AreEqual('https://example.com', Tokens[0].Url);
+
+    // The collapsed form must still take precedence over the shortcut one.
+    Tokens.Free;
+    Tokens := TMarkDownBlockParser.ParseInline('[ref][]', References);
+    Assert.AreEqual<Integer>(1, Tokens.Count);
+    Assert.AreEqual('ref', Tokens[0].Text);
+    Assert.AreEqual('https://example.com', Tokens[0].Url);
+  finally
+    Tokens.Free;
+    References.Free;
+  end;
+end;
+
+// With no matching definition, bracketed text stays literal - the guard that
+// keeps ordinary prose like "[TODO] fix this" from becoming a link.
+procedure TMarkDownParserTests.ParseInlineLeavesUnmatchedShortcutLiteral;
+var
+  References: TStringList;
+  Tokens: TMarkDownInlineList;
+  I: Integer;
+  All: string;
+begin
+  References := TStringList.Create;
+  Tokens := nil;
+  try
+    References.Values['ref'] := 'https://example.com';
+    Tokens := TMarkDownBlockParser.ParseInline('[TODO] fix this', References);
+    All := '';
+    for I := 0 to Tokens.Count - 1 do
+    begin
+      All := All + Tokens[I].Text;
+      Assert.AreEqual('', Tokens[I].Url);
+    end;
+    Assert.AreEqual('[TODO] fix this', All);
+  finally
+    Tokens.Free;
+    References.Free;
+  end;
+end;
+
 procedure TMarkDownParserTests.ParseInlineDetectsAutoLink;
 var
   Tokens: TMarkDownInlineList;
@@ -1789,6 +1883,32 @@ begin
   Assert.IsTrue(TMarkDownBlockParser.IsPipeTableRow('a | b'));
   Assert.IsFalse(TMarkDownBlockParser.IsPipeTableRow('plain'));
   Assert.IsFalse(TMarkDownBlockParser.IsPipeTableRow(''));
+end;
+
+// An escaped pipe is content, not a column separator - without this a cell
+// containing '|' silently shifts every later column in the row. The escape is
+// also resolved here rather than in ParseRuns, which would leave the backslash
+// visible inside a code span.
+procedure TMarkDownParserTests.SplitTableRowKeepsEscapedPipe;
+var
+  Cells: TStringList;
+begin
+  Cells := TStringList.Create;
+  try
+    TMarkDownBlockParser.SplitTableRow('| a \| b | c |' , Cells);
+    Assert.AreEqual<Integer>(2, Cells.Count);
+    Assert.AreEqual('a | b', Cells[0]);
+    Assert.AreEqual('c', Cells[1]);
+
+    // A trailing escaped pipe is the last cell's content, not the row's
+    // closing delimiter.
+    TMarkDownBlockParser.SplitTableRow('| a | b \|', Cells);
+    Assert.AreEqual<Integer>(2, Cells.Count);
+    Assert.AreEqual('a', Cells[0]);
+    Assert.AreEqual('b |', Cells[1]);
+  finally
+    Cells.Free;
+  end;
 end;
 
 procedure TMarkDownParserTests.SplitTableRowSplitsCells;

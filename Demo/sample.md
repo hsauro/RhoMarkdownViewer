@@ -22,6 +22,13 @@ Escaped punctuation stays literal: \*not italic\* and \[not a link\]
 
 #### H4 is smaller still
 
+### A closing sequence is stripped ###
+
+A run of hashes only closes a heading when whitespace precedes it, so the next
+heading keeps its hash:
+
+### Not a closing sequence: C#
+
 ---
 
 ## Lists
@@ -144,7 +151,9 @@ Four-space indented code block (no fence), line breaks preserved:
 Bare URL: https://www.embarcadero.com/ and angle form <https://docwiki.embarcadero.com/>
 plus an email <support@example.com>.
 
-A reference-style [DocWiki][docwiki] link.
+A reference-style [DocWiki][docwiki] link, a collapsed [docwiki][] one, and the
+shortcut form [docwiki] with no second bracket pair. Bracketed prose with no
+matching definition, such as [TODO] fix this, stays literal.
 
 [docwiki]: https://docwiki.embarcadero.com/
 
@@ -166,6 +175,14 @@ least its longest word rather than wrapping mid-word when the table is squeezed.
 | :-- | :-- | :- | :---- |
 | **M0** | **done** | Migrate to the new wrapper | It builds and runs on the new wrapper; load, simulate and import unchanged |
 | **M1** | | Sibling project skeleton and console harness | The harness builds and runs against a hand-built fixture model source |
+
+An escaped pipe is cell content, not a column separator - including inside a
+code span, where the backslash must not survive:
+
+| Operator | Meaning |
+| :--- | :--- |
+| `a \| b` | bitwise or, shown in code |
+| a \| b | the same pair as plain text |
 
 ![Alt text for a missing image](images/example.png)
 
