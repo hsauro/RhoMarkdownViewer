@@ -24,7 +24,7 @@ entire visual layer (layout, paint, hit-testing, selection) was rebuilt on Skia.
 See [Differences from the VCL original](#differences-from-the-vcl-original).
 
 <p align="center">
-  <img src="Images/sample1.png" width="900"
+  <img src="Images/sample1.png" width="700"
        alt="The MDViewerEditor demo showing nested block quotes, container list items, and syntax-highlighted code blocks">
 </p>
 
