@@ -45,6 +45,17 @@ period should line up:
 11. Two digits
 100. Three digits spill left of the gutter, as a browser does
 
+A closing parenthesis is an ordered marker too, and renders with a period just
+as an `<ol>` does on GitHub:
+
+1) Paren one
+2) Paren two, with a continuation paragraph below
+
+   The continuation nests under the item, because the content column is
+   measured to the marker's space rather than to a period.
+
+3) Paren three
+
 - [x] Completed task
 - [ ] Outstanding task
 - [x] Another done one

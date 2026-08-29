@@ -64,7 +64,7 @@ Supported rendering includes:
 - Syntax highlighting of fenced code blocks for 25+ languages (configurable via `SyntaxColors`)
 - Block quotes — **including nested quotes and quotes that contain lists, headings, and code blocks**
 - Horizontal rules
-- Ordered and unordered lists
+- Ordered and unordered lists — both GFM ordered delimiters, `1.` and `1)`
 - Nested list indentation
 - **Multi-paragraph list items and code blocks nested inside a list item**
 - Task lists with checked and unchecked boxes
@@ -659,7 +659,6 @@ to visible literal text — nothing is silently dropped.
 | Construct | Example | Behaviour |
 | :--- | :--- | :--- |
 | Multi-backtick code spans | ``` ``code with ` inside`` ``` | Only single-backtick spans are parsed. |
-| Ordered lists with `)` | `1) item` | Not a list; renders as a paragraph. Use `1.` |
 | ATX closing sequences | `### Heading ###` | Trailing hashes are shown rather than stripped. |
 | Angle-bracket link destinations | `[a](<url with spaces>)` | The destination is cut at the first space. |
 | Shortcut reference links | `[foo]` | Renders literally. Collapsed `[foo][]` and full `[foo][bar]` both work. |

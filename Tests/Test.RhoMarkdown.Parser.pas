@@ -14,6 +14,8 @@ type
     [Test]
     procedure ParsesNestedOrderedListItem;
     [Test]
+    procedure ParsesParenOrderedListItem;
+    [Test]
     procedure ExtractsCheckedTask;
     [Test]
     procedure RecognizesTableStart;
@@ -49,6 +51,10 @@ type
     procedure ParseBlocksNestsQuote;
     [Test]
     procedure ParseBlocksParsesListInsideQuote;
+    [Test]
+    procedure ParseBlocksParenOrderedList;
+    [Test]
+    procedure ParseBlocksParenOrderedListKeepsSourceMap;
     [Test]
     procedure ParseBlocksNestsSecondParagraphInItem;
     [Test]
@@ -250,6 +256,39 @@ begin
   Assert.AreEqual<Integer>(12, Number);
   Assert.AreEqual<Integer>(2, IndentLevel);
   Assert.AreEqual('Item', Text);
+end;
+
+// `1)` is as valid a GFM ordered marker as `1.`; the delimiter is not carried
+// on the block, so both produce the same Ordered/Number.
+procedure TMarkDownParserTests.ParsesParenOrderedListItem;
+var
+  Text: string;
+  Ordered: Boolean;
+  Number: Integer;
+  IndentLevel: Integer;
+begin
+  Assert.IsTrue(TMarkDownBlockParser.TryParseListItem('1) Item', Text,
+    Ordered, Number, IndentLevel));
+  Assert.IsTrue(Ordered);
+  Assert.AreEqual<Integer>(1, Number);
+  Assert.AreEqual<Integer>(0, IndentLevel);
+  Assert.AreEqual('Item', Text);
+
+  // Indented, multi-digit, and starting at something other than 1 - the same
+  // cases the '.' form supports.
+  Assert.IsTrue(TMarkDownBlockParser.TryParseListItem('    12) Nested', Text,
+    Ordered, Number, IndentLevel));
+  Assert.IsTrue(Ordered);
+  Assert.AreEqual<Integer>(12, Number);
+  Assert.AreEqual<Integer>(2, IndentLevel);
+  Assert.AreEqual('Nested', Text);
+
+  // A ')' with no digits before it is not a marker.
+  Assert.IsFalse(TMarkDownBlockParser.TryParseListItem(') no digits', Text,
+    Ordered, Number, IndentLevel));
+  // Nor is one with no space after it.
+  Assert.IsFalse(TMarkDownBlockParser.TryParseListItem('1)no space', Text,
+    Ordered, Number, IndentLevel));
 end;
 
 procedure TMarkDownParserTests.ExtractsCheckedTask;
@@ -600,6 +639,39 @@ begin
     Assert.AreEqual<Integer>(1, Blocks[0].Children.Count);
     Assert.IsTrue(Blocks[0].Children[0].Kind = bkParagraph);
     Assert.AreEqual('alpha bravo', Blocks[0].Children[0].Text);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure TMarkDownParserTests.ParseBlocksParenOrderedList;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('1) first');
+    Lines.Add('2) second');
+    Lines.Add('');
+    Lines.Add('   a continuation paragraph of the second item');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.AreEqual<Integer>(2, Blocks.Count);
+    Assert.IsTrue(Blocks[0].Kind = bkListItem);
+    Assert.IsTrue(Blocks[0].Ordered);
+    Assert.AreEqual<Integer>(1, Blocks[0].Number);
+    Assert.AreEqual('first', Blocks[0].Text);
+    Assert.IsTrue(Blocks[1].Ordered);
+    Assert.AreEqual<Integer>(2, Blocks[1].Number);
+    Assert.AreEqual('second', Blocks[1].Text);
+    // The content column is measured to the first space, not to a '.', so item
+    // children nest under a ')' marker exactly as under a '.' one.
+    Assert.IsNotNull(Blocks[1].Children);
+    Assert.AreEqual<Integer>(1, Blocks[1].Children.Count);
+    Assert.AreEqual('a continuation paragraph of the second item',
+      Blocks[1].Children[0].Text);
   finally
     Blocks.Free;
     Lines.Free;
@@ -1881,6 +1953,29 @@ begin
     // 'charlie' begins at the start of the second source line.
     Assert.AreEqual<Integer>(Length('alpha bravo') + 2,
       Blocks[0].SourceMap[Length('alpha bravo ')]);
+  finally
+    Blocks.Free;
+    Lines.Free;
+  end;
+end;
+
+// The list-item source map locates Text by searching the line, so it is
+// marker-agnostic - this guards verbatim markdown copy over a ')' list.
+procedure TMarkDownParserTests.ParseBlocksParenOrderedListKeepsSourceMap;
+var
+  Blocks: TMarkDownBlockList;
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  Blocks := nil;
+  try
+    Lines.Add('7) an item with **bold** in it');
+    Blocks := TMarkDownBlockParser.ParseBlocks(Lines);
+    Assert.IsTrue(Blocks[0].Kind = bkListItem);
+    Assert.AreEqual('an item with **bold** in it', Blocks[0].Text);
+    AssertSourceMapValid(Lines, Blocks[0]);
+    // Text starts after '7) '.
+    Assert.AreEqual<Integer>(3, Blocks[0].SourceMap[0]);
   finally
     Blocks.Free;
     Lines.Free;

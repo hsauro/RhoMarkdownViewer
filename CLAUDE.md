@@ -11,15 +11,16 @@ browser — and installs into the IDE as a designable component on the
 
 ## Status
 
-**Non-visual layer ported and green. Control skeleton runs. Layout pass is the
-next piece of work.**
+**Complete and in use.** Parser, layout, paint, hit-testing, selection, find and
+HTML export all work; the component installs and is designable. Remaining work
+is incremental (see the CommonMark gaps table and Phase C below).
 
 Done and verified:
 
 - `Source/` — `uRhoMarkdownTypes.pas`, `uRhoMarkdownParser.pas`,
   `uRhoMarkdownHighlight.pas`, `uRhoMarkdownHtml.pas`: no FMX or VCL dependency
   (5,757 lines).
-- `Tests/RhoMarkdownTests.dpr` — **182 tests, 182 passing.**
+- `Tests/RhoMarkdownTests.dpr` — **185 tests, 185 passing.**
 - `Source/uRhoMarkdownViewer.pas` — `TRhoMarkdownViewer`, the control:
   `TSkPaintBox` + owned `TScrollBar`, parse-on-change, cached display list,
   published property surface, and the full inline layout pass.
@@ -72,6 +73,7 @@ said as much. Tested empirically; the failing cases live in
 | Block HTML `<div align="center">` | ✅ **fixed 2026-08-16** — alignment containers only; other block HTML still literal |
 | **Fence length / `~~~` fences** | ✅ **fixed 2026-08-09** — see below |
 | Ordered list starting at N | ✅ works |
+| Ordered list with `)` | ✅ **fixed 2026-08-28** — `1)` is a marker; see below |
 | Link with title | ✅ works |
 | `***` / `___` breaks | ✅ work |
 
@@ -120,6 +122,19 @@ another fence line as content (recovers the intent, but breaks back-to-back code
 blocks and diverges from every other renderer). The reason for rejecting both:
 a `.md` file must render the same here as it does on GitHub. Reaching for a
 heuristic here trades that away to paper over malformed input.
+
+**Ordered lists accept both GFM delimiters.** `TryParseListItem` takes `.` *or*
+`)`, and that one-character test is the whole feature — every consumer is
+already marker-agnostic and needed no change: the item's content column is
+measured with `Pos(' ', MarkerTail)` (not to a period), `MapSingleLine` locates
+the text with `PosEx` rather than by parsing the marker, `ToggleTask` scans left
+from the mapped text for `]`, and HTML export builds `<ol>` from the `Ordered`
+flag. ⚠️ **The delimiter is deliberately not carried on the block**: the viewer
+composes the marker from `Number` and always draws `N.`, which is exactly what
+an `<ol>` renders as on GitHub whichever delimiter the source used. One known
+divergence, accepted: CommonMark treats `.` and `)` as *different* list types
+(a `1.` list followed by `2)` starts a second list), but the model is a flat
+`Ordered: Boolean` + `IndentLevel`, so we merge them.
 
 **Container blocks — Phases A (quotes) and B (list items) done.**
 `TMarkDownBlock` has an owned `Children: TMarkDownBlockList`. A `bkQuote` is a
@@ -348,10 +363,14 @@ produces bugs that look like something else entirely:
   true inline images via `AddPlaceholder` — which the VCL version could not do.
   Needs a `TSkImage` cache keyed on resolved path, replacing the `TPicture`
   cache. Paths resolve against `BasePath` (set automatically by `LoadFromFile`).
-- **Font fallback is on.** The paragraph style gets a font-family list (Segoe UI
-  Emoji on Windows, Apple Color Emoji on macOS) so the parser's emoji shortcodes
-  (`:smile:`, `:warning:`) render as emoji rather than tofu. Markdown is prose —
-  unlike RhoEditor, which deliberately declined fallback for a Latin code editor.
+- **Font fallback is on, but conditionally.** A style gets the emoji/symbol
+  families appended **only when its text actually contains a codepoint that
+  needs them**, so the parser's emoji shortcodes (`:smile:`, `:warning:`) render
+  as emoji rather than tofu while ASCII prose is laid out with the primary
+  family alone. Markdown is prose — unlike RhoEditor, which deliberately
+  declined fallback for a Latin code editor. 🔴 The conditional part is a
+  correctness fix, not an optimisation — see "Fonts and fallback" below before
+  touching it.
 - **HTML export stays.** `uRhoMarkdownHtml.pas` is 285 lines and ports free.
 
 ## Repo layout
@@ -419,6 +438,15 @@ Mirror RhoEditor:
   - **Task toggle mirror** — `AllowTaskToggle` is on, and `OnTaskToggle` copies
     the viewer's rewritten source back into the memo (the viewer owns the source
     of truth once a checkbox is clicked).
+  - **Open / Save / Save As** — `FCurrentFile` is the whole difference between
+    Save and Save As: empty means "never been to disk", so Save falls through to
+    the prompt. ⚠️ **Loading and writing are each funnelled through one routine**
+    (`OpenDocument` / `WriteToFile`) on purpose. There are four ways a document
+    comes in — the Open button, a dropped file, a command-line argument, and
+    Save As — and when each did its own loading only the Open button recorded the
+    path, so Save still prompted after a drag-and-drop.
+  - **Hide-editor toggle** — collapses the memo and `PanelSplitter` so the
+    preview fills the window.
   - **Find bar** — `FindBar`, a Top-aligned `TLayout`, hidden until **Edit ▸
     Find…** (Ctrl+F). It is the reference example of the host's half of the find
     split: term, two option checkboxes, Prev/Next, and a `n of m` counter driven
@@ -477,7 +505,7 @@ The component must be installable and fully designable.
 
 ## Tests
 
-`Tests/RhoMarkdownTests.dpr` — **182 tests, all passing.** Console app, no FMX or
+`Tests/RhoMarkdownTests.dpr` — **185 tests, all passing.** Console app, no FMX or
 Skia dependency, so the parse layer stays testable without a UI.
 
 ```
@@ -916,6 +944,39 @@ crashed the host. `ResolveImagePath` now wraps the `Combine`/`GetFullPath` pair
 in a `try/except` returning `''`, because a markdown document is untrusted input
 and a malformed destination must degrade to alt text, never propagate. Both paths
 are covered by `ParseBlocksStripsImageTitle` / `ParseInlineStripsImageTitle`.
+
+### Fonts and fallback
+
+🔴 **The emoji/symbol families are appended to a style only for text that needs
+them (`NeedsSymbolFallback`), and that is a correctness fix for macOS, not an
+optimisation. Do not "simplify" it back to an unconditional family list.**
+
+Skia resolves the family list **per character**. Apple Color Emoji contains
+`U+0020` with an emoji-width advance — a full em, against roughly a quarter for
+a text font — so the moment it can claim the space character, every gap in the
+paragraph blows out. The symptom is "lots of spaces between the words", which
+reads as a layout or word-wrap bug and sends you into `LayoutBlock`; the cause
+is the font list. Segoe UI Emoji has the same hazard, so the guard is written
+once for both.
+
+The emoji face becomes reachable whenever the **primary** family fails to
+resolve — which is why this appeared on macOS and not on Windows, and why the
+second half of the fix was `DefaultFontFamily = 'Helvetica'` rather than
+`'Helvetica Neue'`: the latter did not resolve through Skia's font manager
+there. ⚠️ Verify a macOS family actually resolves before changing these
+constants; an unresolved primary is silent.
+
+`NeedsSymbolFallback` is a cheap scan for any codepoint `>= #$2100`. Everything
+below that — Latin, Greek, Cyrillic, punctuation, dashes, curly quotes, the
+bullet — is covered by any body font, so such a run gets the primary family
+alone.
+
+⚠️ **Every style-building call therefore needs the text it will render.**
+`BaseTextStyle`, `BodyFamilies` and `CodeFamilies` all take an `AText`
+parameter, and `BuildInline` threads `AFallbackText` down for the paragraph
+style. A new call site that passes `''` silently loses emoji rendering for that
+run; one that passes the whole document gets the fallback everywhere and brings
+the spacing bug back.
 
 ### Text encoding
 

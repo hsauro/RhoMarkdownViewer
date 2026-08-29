@@ -450,7 +450,11 @@ begin
   while (I <= Length(T)) and CharInSet(T[I], ['0'..'9']) do
     Inc(I);
 
-  if (I > 1) and (I < Length(T)) and (T[I] = '.') and
+  // Both GFM delimiters: `1.` and `1)` are equally valid ordered-list markers,
+  // and the delimiter is not carried on the block - the viewer composes the
+  // marker from Number and always draws `N.`, which is what an <ol> renders as
+  // on GitHub whichever delimiter the source used.
+  if (I > 1) and (I < Length(T)) and CharInSet(T[I], ['.', ')']) and
     CharInSet(T[I + 1], [' ', #9]) then
   begin
     Digits := Copy(T, 1, I - 1);
