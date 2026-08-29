@@ -59,7 +59,7 @@ Supported rendering includes:
 - Angle-bracket URL and email autolinks
 - Reference-style links
 - Inline code
-- Fenced code blocks
+- Fenced code blocks — backtick or tilde (`~~~`) fences, of any length, so a block can itself contain a fence
 - **Indented code blocks** (four-space, no fence)
 - Syntax highlighting of fenced code blocks for 25+ languages (configurable via `SyntaxColors`)
 - Block quotes — **including nested quotes and quotes that contain lists, headings, and code blocks**
@@ -72,7 +72,9 @@ Supported rendering includes:
 - Pipe tables with left, center, and right alignment
 - Inline formatting and links inside table cells
 - Images — **block and true inline**, scaled with alt-text fallback
+- **Image alignment** — document-wide (`ImageAlign`), per image (`<img align="center">`), or by an enclosing alignment container
 - **A whitelist of inline HTML** — formatting tags plus `<img>` with explicit sizing
+- **`<p align="center">` / `<div align="center">` blocks** — the GitHub idiom for centring content, rendered as an alignment container
 - **YAML front matter** rendered as a metadata card (`name:`/`description:` etc., as in `skill.md` and Jekyll-style documents)
 - Clickable markdown links (`OnLinkClick`, or the system browser by default)
 - **In-page anchor links** (`[text](#heading)`) with GitHub-compatible slugs, plus `ScrollToAnchor` for programmatic navigation and tables of contents
@@ -83,6 +85,7 @@ Supported rendering includes:
 - Vertical scrolling (wheel, scrollbar, keyboard, and edge auto-scroll while selecting)
 - Mouse text selection across blocks, and `Ctrl/Cmd+A` to select all
 - Copy the selection as the original markdown (`Ctrl/Cmd+C`) or as plain text (`Ctrl/Cmd+Shift+C`)
+- **Find / search** with live highlighting, a current-match colour, match counting, and `F3` / `Shift+F3` navigation
 - Read the current selection as markdown or plain text via `SelectedText`
 - Floating clipboard **Copy** button when hovering a code block (`ShowCodeCopyButton`)
 - Configurable body and code fonts (`FontFamily`, `CodeFontFamily`), font size, and content padding
@@ -231,6 +234,37 @@ renders a README — a root-relative `src="/images/x.png"` resolves against
 > **Note:** the HTML whitelist affects on-screen rendering. `AsHtml` export
 > currently escapes these tags rather than passing them through.
 
+### Block alignment containers
+
+One block-level HTML construct is interpreted, because it is the idiom a README
+uses to centre content — markdown itself has no syntax for it:
+`<p align="center">…</p>` and `<div align="center">…</div>` (also `left` and
+`right`). The wrapper is consumed and its content is laid out with that
+alignment, so the same file centres here and on GitHub.
+
+```markdown
+<p align="center">
+  <img src="images/logo.png" width="240" alt="logo">
+</p>
+
+<div align="right">
+Right-aligned prose, and *inline markdown still works* inside the container.
+</div>
+```
+
+Only a *recognised* `align` value makes a container: a bare `<div>`, an
+unfamiliar alignment, or an unterminated wrapper keeps the documented default of
+rendering literally, so arbitrary block HTML is never silently swallowed.
+
+Images can also be aligned without any container. `ImageAlign`
+(`riaLeft` — the default — `riaCenter`, `riaRight`) places every image in the
+document, an `<img align="center">` attribute overrides it for one image, and an
+enclosing alignment container wins over both:
+
+```pascal
+Viewer.ImageAlign := riaCenter;
+```
+
 ### YAML front matter
 
 A YAML front-matter header — a `---` block at the very top of the document,
@@ -344,6 +378,46 @@ Viewer.OnTaskToggle :=
     // Viewer.MarkdownText has already been updated; mirror it wherever you like.
   end;
 ```
+
+---
+
+## Find and search
+
+The component owns the search **mechanism** — matching, highlighting, and
+scrolling a hit into view — and the host owns the find **bar**. Highlighting
+needs the laid-out paragraphs, which are not reachable from outside; the UI, by
+contrast, needs no privileged access, so baking one in would only fight the
+host's styling. (The same reasoning as `ApplyTheme` being a method.)
+
+```pascal
+Viewer.SearchCaseSensitive := False;
+Viewer.SearchWholeWords    := False;
+Viewer.SearchText          := EditFind.Text;   // highlights; does not scroll
+Viewer.FindNext;                               // moves to the next match
+
+LabelCount.Text := Format('%d of %d',
+  [Viewer.SearchMatchIndex + 1, Viewer.SearchMatchCount]);
+```
+
+API: `SearchText`, `SearchCaseSensitive`, `SearchWholeWords`,
+`SearchHighlightColor`, `SearchCurrentMatchColor` (all published),
+`SearchMatchCount` / `SearchMatchIndex` (public, read-only), `FindNext`,
+`FindPrevious`, `ClearSearch`, and the `OnSearchChange` event — which is what a
+find bar drives its `n of m` counter from. `F3` and `Shift+F3` step through
+matches while a search is active.
+
+Two deliberate behaviours worth knowing:
+
+- **Assigning `SearchText` highlights but does not scroll.** An incremental find
+  bar assigns on every keystroke, and yanking the view each time is unusable —
+  the host calls `FindNext` to move.
+- **Matching runs over the rendered text, not the markdown source**, so a search
+  never matches `**` around a bold word, a link URL, or an entity name the
+  reader cannot see. It is also **within a block**: a phrase spanning a
+  paragraph break is not found.
+
+`MDViewerEditor` has a working find bar (**Edit ▸ Find…**, `Ctrl+F`) as the
+reference example of the host's half.
 
 ---
 
@@ -466,7 +540,7 @@ control to be parented or shown. This drives `Tools/MarkdownRender`, which rende
 a markdown file straight to a PNG through the real layout and paint path:
 
 ```text
-MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|anchors]
+MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|html|anchors|search <term>] [dark] [center|right]
 ```
 
 ---
@@ -482,6 +556,7 @@ When the viewer has focus (macOS uses ⌘ in place of Ctrl):
 - Ctrl/Cmd+A — select all
 - Ctrl/Cmd+C — copy the selection as markdown
 - Ctrl/Cmd+Shift+C — copy the selection as plain text
+- F3 / Shift+F3 — next / previous search match (while a search is active)
 - Escape — clear the selection
 
 ---
@@ -494,6 +569,11 @@ two-way scroll synchronisation (via `OnScroll`), clickable task checkboxes
 mirrored back into the editor (`AllowTaskToggle` + `OnTaskToggle`), drag-and-drop
 of a `.md` file onto the preview, and a set of sample documents — including one
 that showcases the container-block and inline-HTML features.
+
+It also doubles as a small markdown editor: **Open**, **Save** and **Save As**
+on the toolbar, a **Find** bar (**Edit ▸ Find…**, `Ctrl+F`) wired to the
+viewer's search API, and a toggle that hides the editor pane so the preview
+fills the window.
 
 `Demo/sample.md` is the rendering corpus: a single document that exercises every
 implemented feature, and the closest thing to a visual regression suite.
@@ -514,6 +594,7 @@ this version.
 - Nested container blocks: nested quotes, list-in-quote, quotes holding any block, multi-paragraph list items, and code blocks inside list items
 - Indented (four-space) code blocks
 - An inline HTML whitelist, including `<img>` with explicit sizing
+- `<p align>` / `<div align>` alignment containers and a document-wide `ImageAlign`
 - True inline images (not just block images)
 - True super/subscript baselines
 - Emoji / symbol colour-font fallback
@@ -524,7 +605,6 @@ this version.
 
 - In-place editing of the rendered source (`ReadOnly := False`), undo/redo, caret
   navigation, and the associated editing shortcuts — this viewer is **read-only**.
-- Find / search highlighting (`SearchText`, `FindNext`, `FindPrevious`).
 - Incremental streaming (`AppendMarkdownText`): the whole document is reparsed on
   every change.
 
@@ -578,14 +658,13 @@ to visible literal text — nothing is silently dropped.
 
 | Construct | Example | Behaviour |
 | :--- | :--- | :--- |
-| Tilde code fences | `~~~` | Not recognised as a fence; renders as text. Use ``` ``` ```. |
 | Multi-backtick code spans | ``` ``code with ` inside`` ``` | Only single-backtick spans are parsed. |
 | Ordered lists with `)` | `1) item` | Not a list; renders as a paragraph. Use `1.` |
 | ATX closing sequences | `### Heading ###` | Trailing hashes are shown rather than stripped. |
 | Angle-bracket link destinations | `[a](<url with spaces>)` | The destination is cut at the first space. |
 | Shortcut reference links | `[foo]` | Renders literally. Collapsed `[foo][]` and full `[foo][bar]` both work. |
 | Footnotes | `[^1]` | GFM extension; renders literally. |
-| HTML blocks | `<details>`, `<div>`, `<table>` | Only the [inline HTML whitelist](#inline-html-whitelist) is interpreted; block-level HTML renders literally. |
+| HTML blocks | `<details>`, `<table>`, a bare `<div>` | Beyond the [inline HTML whitelist](#inline-html-whitelist) and the [`align` containers](#block-alignment-containers), block-level HTML renders literally. |
 | Lazy block-quote continuation | a `>` line continued on the next line without `>` | The continuation escapes the quote. Prefix every line with `>`. |
 | Escaped pipes in tables | `\|` inside a cell | Treated as a column separator. |
 
@@ -594,7 +673,8 @@ Also out of scope, being neither CommonMark nor GFM: definition lists, math
 
 Nested containers *are* supported — nested block quotes, lists and code blocks
 inside quotes, and multi-paragraph or code-bearing list items all render — as are
-four-space indented code blocks. Those were the historic gaps and are now closed.
+four-space indented code blocks, tilde and long code fences, and `align`
+containers. Those were the historic gaps and are now closed.
 
 It is intended for application help, notes, preview panes, and embedded
 documentation, where native cross-platform rendering and simple deployment matter
