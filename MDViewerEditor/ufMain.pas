@@ -7,7 +7,7 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Memo.Types,
   FMX.Controls.Presentation, FMX.ScrollBox, FMX.Memo, uRhoMarkdownViewer,
   FMX.StdCtrls, FMX.Layouts, FMX.ListBox, uExamples, System.Math, FMX.Menus,
-  FMX.Edit;
+  FMX.Edit, System.Skia, FMX.Skia;
 
 type
   TfrmMain = class(TForm)
@@ -16,13 +16,12 @@ type
     PanelSplitter: TSplitter;
     FViewer: TRhoMarkdownViewer;
     TextMemo: TMemo;
-    btnOpen: TButton;
+    btnOpen: TSpeedButton;
     cboCombo: TComboBox;
-    btnTheme: TButton;
-    btnUpdate: TButton;
-    btnNew: TButton;
+    btnUpdate: TSpeedButton;
+    btnNew: TSpeedButton;
     Label1: TLabel;
-    btnSave: TButton;
+    btnSave: TSpeedButton;
     Layout4: TLayout;
     lblFileName: TLabel;
     btnOpenClosePanel: TSpeedButton;
@@ -35,10 +34,7 @@ type
     MenuItem6: TMenuItem;
     mnuQuit: TMenuItem;
     MenuItem8: TMenuItem;
-    // Find bar. The viewer owns matching, highlighting and scrolling; this is
-    // only the UI that drives it - see the find section of the component's
-    // CLAUDE.md for why the split falls there.
-    btnSaveAs: TButton;
+    btnSaveAs: TSpeedButton;
     FindBar: TLayout;
     lblFind: TLabel;
     edtFind: TEdit;
@@ -49,6 +45,14 @@ type
     lblFindStatus: TLabel;
     btnFindClose: TButton;
     mnuFind: TMenuItem;
+    SkSvg1: TSkSvg;
+    SkSvg2: TSkSvg;
+    SkSvg3: TSkSvg;
+    SkSvg4: TSkSvg;
+    SkSvg5: TSkSvg;
+    SkSvg7: TSkSvg;
+    btnTheme: TSpeedButton;
+    SkSvg6: TSkSvg;
     procedure btnOpenClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure cboComboChange(Sender: TObject);
@@ -128,7 +132,7 @@ implementation
 Uses IOUtils;
 
 Const
-   VERSION = '0.6';
+   VERSION = '1.0';
 
 type
   TComboBoxHelper = class helper for TComboBox
@@ -250,8 +254,8 @@ begin
   else
     FViewer.ApplyTheme(rtLight);
   If FDark then
-     BtnTheme.Text := 'Theme: Dark'
-  else BtnTheme.Text := 'Theme: Light';
+     BtnTheme.Text := '    Dark'
+  else BtnTheme.Text := '    Light';
 end;
 
 procedure TfrmMain.cboComboChange(Sender: TObject);
@@ -271,6 +275,7 @@ begin
   cboCombo.AddWithTag('Tables', GetExample3);
   cboCombo.AddWithTag('Text Stlyes', GetExample4);
   cboCombo.AddWithTag('Containers & HTML', GetExample5);
+  cboCombo.AddWithTag('LaTeX Math', GetExample6);
 
   // Wire scroll sync in code so the .fmx carries no event bindings.
   TextMemo.OnViewportPositionChange := MemoViewportChange;

@@ -140,11 +140,13 @@ type
   TRatexFreeDisplayList = procedure(json: PAnsiChar); cdecl;
   TRatexGetLastError = function: PAnsiChar; cdecl;
 
-{$IFDEF MSWINDOWS}
-  TLibHandle = HMODULE;
-{$ELSE}
-  TLibHandle = Pointer;
-{$ENDIF}
+  // NativeUInt on BOTH platforms, and that is not a simplification: Windows'
+  // HMODULE is already NativeUInt, and Delphi's POSIX dlopen is declared
+  // `function dlopen(...): NativeUInt` - it does NOT return a Pointer the way
+  // the C header does, and dlsym/dlclose take the handle back as NativeUInt.
+  // Declaring this Pointer compiles on Windows and fails only on macOS, with
+  // "E2010 Incompatible types: 'Pointer' and 'UInt64'".
+  TLibHandle = NativeUInt;
 
 const
 {$IFDEF MSWINDOWS}
@@ -217,9 +219,11 @@ end;
 function LibIsValid(const AHandle: TLibHandle): Boolean;
 begin
 {$IFDEF MSWINDOWS}
+  // Values below 32 are the legacy WinExec-era error codes LoadLibrary can
+  // still return, not usable module handles.
   Result := AHandle >= 32;
 {$ELSE}
-  Result := AHandle <> nil;
+  Result := AHandle <> 0;
 {$ENDIF}
 end;
 

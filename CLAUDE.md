@@ -1145,6 +1145,26 @@ probe for `KaTeX_Main-Regular.ttf`.
 executable (inside a bundle that is `Contents/MacOS/`), which sidesteps
 `install_name` and rpath entirely. Keep it that way.
 
+⚠️ **`TLibHandle` is `NativeUInt` on both platforms, and that is not tidying.**
+Delphi's POSIX `dlopen` is declared `function dlopen(...): NativeUInt` — it does
+**not** return a `Pointer` the way the C header does, and `dlsym`/`dlclose` take
+the handle back as `NativeUInt` too (`rtl\posix\DlfcnAPI.inc`). Declaring it
+`Pointer` compiles perfectly on Windows and fails only on the macOS compilers,
+with `E2010 Incompatible types: 'Pointer' and 'UInt64'`.
+
+**Compile-check the macOS targets from Windows** — no Mac, no PAServer needed,
+because a pure-Pascal unit only needs the platform DCUs, which ship with the
+IDE. This catches exactly this class of bug:
+
+```
+cd Source
+"C:\Program Files (x86)\Embarcadero\Studio.0in\dccosxarm64.exe" -N<tmp> -NU<tmp> -U<tmp> uRhoMarkdownViewer.pas
+"C:\Program Files (x86)\Embarcadero\Studio.0in\dccosx64.exe"    -N<tmp> -NU<tmp> -U<tmp> uRhoMarkdownViewer.pas
+```
+
+Both are verified clean. Run them after touching anything under an `{$IFDEF}` —
+the Windows build will not tell you.
+
 #### How it hangs off the existing machinery
 
 - **Inline math is a placeholder**, exactly like an inline image: one slot, one

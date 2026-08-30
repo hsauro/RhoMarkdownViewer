@@ -7,6 +7,7 @@ function GetExample2 : string;
 function GetExample3 : string;
 function GetExample4 : string;
 function GetExample5 : string;
+function GetExample6 : string;
 
 implementation
 
@@ -302,6 +303,114 @@ begin
 
   Images support explicit width via HTML (needs a local image beside the document):
   <img src="images/example.png" width="60%" alt="a 60%-width image">
+  ''';
+end;
+
+function GetExample6: string;
+begin
+  result := '''
+  # LaTeX math
+
+  Formulas are typeset natively - no WebView, no MathJax, no browser. If the
+  math engine is not deployed beside the executable, every formula below falls
+  back to showing its LaTeX source instead, so nothing is ever lost.
+
+  ## Inline
+
+  The roots of $ax^2+bx+c=0$ come from the quadratic formula, and
+  $e^{i\pi} + 1 = 0$ is Euler's identity. Symbols flow with the text -
+  $\alpha$, $\beta_0$, $\Delta G^\circ$, $\hbar\omega$ - as do relations
+  like $x \le y \ne z$ and $A \subseteq B$.
+
+  ## Display
+
+  A `$$` block sits centred on its own line:
+
+  $$
+  \frac{-b \pm \sqrt{b^2-4ac}}{2a}
+  $$
+
+  A fenced block tagged `math` does the same, which is how GitHub spells it:
+
+  ```math
+  \sum_{i=1}^{n} i = \frac{n(n+1)}{2}
+  ```
+
+  ## Structures
+
+  Matrices, aligned systems and case splits all work:
+
+  $$
+  \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+  \begin{pmatrix} x \\ y \end{pmatrix}
+  =
+  \begin{pmatrix} ax + by \\ cx + dy \end{pmatrix}
+  $$
+
+  $$
+  \begin{aligned}
+  \frac{dS}{dt} &= -k_1 S E + k_2 C \\
+  \frac{dC}{dt} &= k_1 S E - (k_2 + k_3) C \\
+  \frac{dP}{dt} &= k_3 C
+  \end{aligned}
+  $$
+
+  $$
+  f(x) = \begin{cases}
+    x^2 & \text{if } x \ge 0 \\
+    -x^2 & \text{otherwise}
+  \end{cases}
+  $$
+
+  Stretchy delimiters size themselves to their contents:
+
+  $$
+  \lim_{n \to \infty} \left( 1 + \frac{1}{n} \right)^{n} = e
+  \qquad
+  \prod_{k=1}^{n} k = n!
+  $$
+
+  ## Chemistry
+
+  mhchem is supported, so reaction schemes typeset properly:
+
+  $$
+  \ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}
+  $$
+
+  $$
+  \ce{E + S <=>[k_1][k_2] ES ->[k_3] E + P}
+  $$
+
+  ## Dollar signs that are not math
+
+  Currency is far more common than mathematics in prose, so a span becomes a
+  formula only when it really looks like one. None of this is touched:
+
+  it costs $5 and $10, or US$100 and CA$200 if you prefer. An escaped \$x\$
+  stays literal, and `$x^2$` inside a code span stays code.
+
+  Note that `$y=x^2$` renders but `$ y = x^2$` does not: no space is allowed
+  just inside the delimiters. That is Pandoc's rule, and GitHub's, so a
+  document renders the same in all three.
+
+  ## Mixed with everything else
+
+  - A list item with math: the decay constant $\lambda = \ln 2 / t_{1/2}$
+  - Another, with a partial derivative: $\frac{\partial u}{\partial t} = \alpha \nabla^2 u$
+
+  > A quote containing math: the Gaussian $e^{-x^2/2\sigma^2}$ normalises to
+  > $\frac{1}{\sigma\sqrt{2\pi}}$.
+
+  | Quantity | Symbol | Relation |
+  | :--- | :---: | :--- |
+  | Rate constant | $k_1$ | $v = k_1 [S]$ |
+  | Half life | $t_{1/2}$ | $t_{1/2} = \ln 2 / \lambda$ |
+  | Michaelis-Menten | $K_M$ | $v = \frac{V_{max}[S]}{K_M + [S]}$ |
+
+  It even works in a heading:
+
+  ### $\Delta G = \Delta H - T\Delta S$
   ''';
 end;
 

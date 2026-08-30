@@ -1,0 +1,386 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Import Condition="Exists('$(BDS)\bin\CodeGear.Deployment.targets')" Project="$(BDS)\bin\CodeGear.Deployment.targets"/>
+    <ProjectExtensions>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+    <PropertyGroup/>
+    <ItemGroup Condition="'$(Platform)'=='OSX64'"/>
+    <ItemGroup Condition="'$(Platform)'=='Win32'">
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'!=''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="Win32\Debug\AlphaFerro.exe" Condition="'$(Config)'=='Debug'">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>AlphaFerro.exe</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='OSXARM64'">
+        <DeployFile Include="OSXARM64\Release\AlphaFerro.entitlements" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\..\</RemoteDir>
+            <RemoteName>AlphaFerro.entitlements</RemoteName>
+            <DeployClass>ProjectOSXEntitlements</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_AMS-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_AMS-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Fraktur-Bold.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Fraktur-Bold.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\AlphaFerro" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>AlphaFerro</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Size3-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Size3-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\delphi_PROJECTICNS.icns" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\Resources\</RemoteDir>
+            <RemoteName>AlphaFerro.icns</RemoteName>
+            <DeployClass>ProjectOSXResource</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Main-Italic.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Main-Italic.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\libratex_ffi.dylib" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>libratex_ffi.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_SansSerif-Bold.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_SansSerif-Bold.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\licenses\THIRD_PARTY_NOTICES.txt" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>THIRD_PARTY_NOTICES.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Main-BoldItalic.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Main-BoldItalic.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\README.txt" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>README.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Caligraphic-Bold.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Caligraphic-Bold.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\licenses\RaTeX-LICENSE-MIT.txt" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\licenses\</RemoteDir>
+            <RemoteName>RaTeX-LICENSE-MIT.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Fraktur-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Fraktur-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\AlphaFerro.info.plist" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\</RemoteDir>
+            <RemoteName>Info.plist</RemoteName>
+            <DeployClass>ProjectOSXInfoPList</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Size1-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Size1-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Size4-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Size4-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Math-Italic.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Math-Italic.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\licenses\SIL-OFL-1.1.txt" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\licenses\</RemoteDir>
+            <RemoteName>SIL-OFL-1.1.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Main-Bold.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Main-Bold.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Math-BoldItalic.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Math-BoldItalic.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_SansSerif-Italic.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_SansSerif-Italic.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_SansSerif-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_SansSerif-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Caligraphic-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Caligraphic-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Script-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Script-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Main-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Main-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Size2-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Size2-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\fonts\KaTeX_Typewriter-Regular.ttf" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\fonts\</RemoteDir>
+            <RemoteName>KaTeX_Typewriter-Regular.ttf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\licenses\KaTeX-fonts-NOTICE.txt" Condition="'$(Config)'=='Release'">
+            <RemoteDir>AlphaFerro.app\Contents\MacOS\licenses\</RemoteDir>
+            <RemoteName>KaTeX-fonts-NOTICE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='Win64'">
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'!=''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="Win64\Debug\AlphaFerro.exe" Condition="'$(Config)'=='Debug'">
+            <RemoteDir>AlphaFerro\</RemoteDir>
+            <RemoteName>AlphaFerro.exe</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
+</Project>

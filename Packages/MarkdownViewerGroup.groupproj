@@ -9,7 +9,7 @@
         <Projects Include="dclRhoMarkdownViewer.dproj">
             <Dependencies/>
         </Projects>
-        <Projects Include="..\MDViewerEditor\MarkDownViewerEditorProject.dproj">
+        <Projects Include="..\MDViewerEditor\AlphaFerro.dproj">
             <Dependencies/>
         </Projects>
     </ItemGroup>
@@ -38,23 +38,23 @@
     <Target Name="dclRhoMarkdownViewer:Make">
         <MSBuild Projects="dclRhoMarkdownViewer.dproj" Targets="Make"/>
     </Target>
-    <Target Name="MarkDownViewerEditorProject">
-        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj"/>
+    <Target Name="AlphaFerro">
+        <MSBuild Projects="..\MDViewerEditor\AlphaFerro.dproj"/>
     </Target>
-    <Target Name="MarkDownViewerEditorProject:Clean">
-        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj" Targets="Clean"/>
+    <Target Name="AlphaFerro:Clean">
+        <MSBuild Projects="..\MDViewerEditor\AlphaFerro.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="MarkDownViewerEditorProject:Make">
-        <MSBuild Projects="..\MDViewerEditor\MarkDownViewerEditorProject.dproj" Targets="Make"/>
+    <Target Name="AlphaFerro:Make">
+        <MSBuild Projects="..\MDViewerEditor\AlphaFerro.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="RhoMarkdownViewer;dclRhoMarkdownViewer;MarkDownViewerEditorProject"/>
+        <CallTarget Targets="RhoMarkdownViewer;dclRhoMarkdownViewer;AlphaFerro"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="RhoMarkdownViewer:Clean;dclRhoMarkdownViewer:Clean;MarkDownViewerEditorProject:Clean"/>
+        <CallTarget Targets="RhoMarkdownViewer:Clean;dclRhoMarkdownViewer:Clean;AlphaFerro:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="RhoMarkdownViewer:Make;dclRhoMarkdownViewer:Make;MarkDownViewerEditorProject:Make"/>
+        <CallTarget Targets="RhoMarkdownViewer:Make;dclRhoMarkdownViewer:Make;AlphaFerro:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
