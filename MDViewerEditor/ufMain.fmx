@@ -43,9 +43,9 @@ object frmMain: TfrmMain
     object cboCombo: TComboBox
       Anchors = [akTop, akRight]
       Position.X = 1221.000000000000000000
-      Position.Y = 11.000000000000000000
+      Position.Y = 8.000000000000000000
       Size.Width = 193.000000000000000000
-      Size.Height = 22.000000000000000000
+      Size.Height = 24.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 4
       OnChange = cboComboChange
@@ -101,7 +101,7 @@ object frmMain: TfrmMain
     object Label1: TLabel
       Anchors = [akTop, akRight]
       Position.X = 1149.000000000000000000
-      Position.Y = 12.000000000000000000
+      Position.Y = 9.000000000000000000
       Size.Width = 65.000000000000000000
       Size.Height = 18.000000000000000000
       Size.PlatformDefault = False
@@ -316,8 +316,8 @@ object frmMain: TfrmMain
       Size.Height = 776.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 0
-      Viewport.Width = 557.000000000000000000
-      Viewport.Height = 772.000000000000000000
+      Viewport.Width = 561.000000000000000000
+      Viewport.Height = 776.000000000000000000
     end
   end
   object PanelSplitter: TSplitter
