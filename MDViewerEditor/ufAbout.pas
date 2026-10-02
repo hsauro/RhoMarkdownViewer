@@ -14,6 +14,9 @@ uses
   System.SysUtils, System.UITypes, System.Types, FMX.Types, FMX.Controls,
   FMX.Forms, FMX.Graphics, FMX.StdCtrls, FMX.Layouts, uRhoMarkdownViewer, uRhoMarkdownMath;
 
+const
+  PROJECT_URL = 'https://github.com/hsauro/RhoMarkdownViewer';
+
 function PlatformText: string;
 begin
   Result := Format('%s %d.%d, %d-bit',
@@ -39,6 +42,8 @@ begin
     sLineBreak +
     'A live markdown editor and previewer, with fast, native rendering ' +
     'powered by Skia.' + sLineBreak +
+    sLineBreak +
+    'Project page: [' + PROJECT_URL + '](' + PROJECT_URL + ')' + sLineBreak +
     sLineBreak +
     '## Features' + sLineBreak +
     sLineBreak +
