@@ -440,7 +440,7 @@ Mirror RhoEditor:
   `Demo/commonmark-gaps.md` is its counterpart: constructs that are **known not
   to render correctly**, with expected-vs-actual for each. Move a case into
   `sample.md` once it works. See "CommonMark gaps" below.
-- `MDViewerEditor/` — `AlphaFerro.dproj`, a live side-by-side
+- `MDViewerEditor/` — `AlphaFerro.dproj`, the **AlphaFerro** app: a live side-by-side
   editor: a left `TMemo` and a right `TRhoMarkdownViewer` split by a
   `TSplitter`. The **View** button (and the sample combo) push the memo text into
   `MarkdownText`; **Open** loads a `.md` file. `ufMain.pas` wires two things worth
@@ -461,6 +461,16 @@ Mirror RhoEditor:
     comes in — the Open button, a dropped file, a command-line argument, and
     Save As — and when each did its own loading only the Open button recorded the
     path, so Save still prompted after a drag-and-drop.
+    File ▸ New / Open share the toolbar buttons' handlers (`btnNewClick` /
+    `btnOpenClick`) — wire a new menu item to the existing handler, don't copy it.
+  - **Window title** — `SetDocumentName` is the one place the document's display
+    name is set: it writes both `lblFileName` and the form `Caption`
+    (`<name> - AlphaFerro`, from `APP_TITLE`), so the two cannot disagree. New,
+    Open, Save/Save As and the sample combo all go through it.
+  - **Help ▸ About** — `ufAbout.pas`, `ShowAboutBox(VERSION, FDark)`. A form
+    built in code (no `.fmx`) whose body is markdown rendered by a
+    `TRhoMarkdownViewer`, themed to match the editor. Its System section reports
+    the platform and `RhoMathAvailable`. Edit the text in `AboutMarkdown`.
   - **File ▸ Export as PDF…** — names the file (defaulting to the open
     document's name with a `.pdf` extension) and calls `FViewer.SaveToPdf`. No
     confirmation dialog afterwards — removed at the user's request as a
@@ -480,7 +490,8 @@ Mirror RhoEditor:
     with no window and no message, which reads like a build problem rather than
     a form problem. `FormCreate` sets it via `TextToShortCut` instead.
 
-  `uExamples.pas` holds the sample documents shown in the combo (`GetExample1..5`).
+  `uExamples.pas` holds the sample documents shown in the combo (`GetExample1..6`;
+  `GetExample6` is LaTeX math).
   **`GetExample5` ("Containers & HTML") is the showcase for the container-block
   and inline-HTML work** — nested quotes, list-in-quote, quote-with-code,
   multi-paragraph items, code-in-item, indented code blocks, and the HTML
@@ -642,6 +653,11 @@ msbuild Packages\RhoMarkdownViewer.dproj /t:Build /p:Config=Debug /p:Platform=Wi
 
 - Object Pascal, FMX. Target Windows + macOS; every feature must behave
   identically on both. If it can't, the approach is suspect.
+- ⚠️ **Delphi source files (`.pas`, `.dpr`, `.dproj`, `.fmx`) are CRLF — keep
+  them CRLF.** Scripted edits (Python text mode, Git Bash `sed -i`) silently
+  rewrite them to LF, and the commit then shows every line of the file as
+  changed. Check with `file <name>` before committing; a whole-file diff for a
+  small edit means the line endings changed.
 - Keep parser / highlighter / HTML logic in their own units, never in the
   control — the VCL version's discipline, worth preserving.
 - Prefer lazy work: lay out and tokenize only what is visible.
