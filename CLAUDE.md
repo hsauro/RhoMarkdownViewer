@@ -223,7 +223,8 @@ caret navigation.
 
 **Ahead of the original:** dark theme, designable `SyntaxColors`, inline images,
 true super/subscript baselines, emoji/symbol font fallback, Antimony, LaTeX math
-(see below), the headless render tool, and cross-platform rendering.
+(see below), **PDF export**, the headless render tool, and cross-platform
+rendering.
 
 **Nothing on the original backlog is outstanding.** Known limitations, all
 deliberate and explained in their sections:
@@ -460,6 +461,11 @@ Mirror RhoEditor:
     comes in — the Open button, a dropped file, a command-line argument, and
     Save As — and when each did its own loading only the Open button recorded the
     path, so Save still prompted after a drag-and-drop.
+  - **File ▸ Export as PDF…** — names the file (defaulting to the open
+    document's name with a `.pdf` extension) and calls `FViewer.SaveToPdf`. No
+    confirmation dialog afterwards — removed at the user's request as a
+    pointless extra click. The current theme carries across, which
+    is `PaintBackground`'s default.
   - **Hide-editor toggle** — collapses the memo and `PanelSplitter` so the
     preview fills the window.
   - **Find bar** — `FindBar`, a Top-aligned `TLayout`, hidden until **Edit ▸
@@ -649,7 +655,7 @@ msbuild Packages\RhoMarkdownViewer.dproj /t:Build /p:Config=Debug /p:Platform=Wi
 
   ```
   msbuild Tools\MarkdownRender\MarkdownRender.dproj /t:Build /p:Config=Debug /p:Platform=Win64
-  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|anchors|center|right|search <term>]
+  Tools\MarkdownRender\MarkdownRender.exe input.md output.png [width] [fontSize] [links|select|dark|html|pdf|anchors|center|right|search <term>]
   ```
 
   The optional fifth argument switches on a verification mode: `links` tints
@@ -1244,6 +1250,81 @@ without the library beside it, since the fallback is half the feature:
 
 ```
 Tools\MarkdownRender\MarkdownRender.exe Demo\math.md out.png 760 14 [dark|select]
+```
+
+### PDF export
+
+`SaveToPdf(FileName [, Options])` writes a paginated PDF and returns the page
+count; `SavePdfToStream` is the same thing without a file. Skia writes it —
+`TSkDocument.MakePDF` — so there is no external tool, no printer driver, and no
+HTML round trip.
+
+**It goes through the same layout and paint path the screen uses.** The document
+is laid out at the page's content width and each page calls `RenderToCanvas`
+with that page's slice scrolled into view, so syntax colouring, tables, images,
+math, front-matter cards and alignment containers all print exactly as they
+render. Text is real PDF text — selectable and searchable in a reader, not a
+rasterized page.
+
+`TRhoPdfOptions` (all measurements in **points**, 1pt = 1/72"):
+`TRhoPdfOptions.Defaults` is US Letter with 1" margins and page numbers on;
+`SetPageSize` takes `rpsLetter` / `rpsA4` / `rpsLegal` / `rpsA5` (portrait — swap
+width and height for landscape).
+
+🔴 **`BodyFontSize` (default 11pt) sets the printed size; the screen `FontSize`
+does not.** The document is scaled by `BodyFontSize / FontSize` as a whole, so
+headings, code, padding and images keep their proportions. Before this,
+`FontSize` was printed literally as points — the editor's 20 gave 20pt body text
+and 40pt H1s on a 6.5" column, with a handful of lines per page. `Scale` is a
+further zoom on top (lays out at `content width / scale`, draws back up, so 0.9
+fits more words per line). `BodyFontSize = 0` restores the old literal mapping.
+
+The page clip is full page width, not the content column: only the vertical clip
+matters for pagination, and a wide list marker (`100.`) hangs left of the column
+— clipping at the margin printed it as `00.`.
+
+⚠️ **`PaintBackground` defaults to True**, i.e. WYSIWYG: a dark-themed viewer
+exports a dark PDF. Setting it False gives white paper, which is only sensible
+with a light theme — a dark theme's pale text on white paper is unreadable, and
+that is why "white paper is what a printer wants" is *not* the default.
+
+**Pagination breaks on block boundaries.** `BreakAfter` finds the first block
+that straddles the page's bottom edge and starts the next page at its top, so a
+paragraph, table or image is not sliced; it also pulls the run of headings
+immediately above the break down with the content, so a heading is never
+stranded at the foot of a page. A block that starts the page or is taller than
+one — a long code block, a tall image — is split, because anything else fails to
+advance.
+
+🔴 **Each page clips to what it actually holds, not to the full content box.**
+`PaintDocument` paints any block that *starts* within the height it is given, so
+a page that broke early has leftover space and the block deferred to the next
+page gets drawn into it — sliced mid-line, exactly the split the break logic just
+avoided. The clip is `PageUsed * Scale`, not `ContentH`. The symptom looks like a
+pagination bug and is a clipping one.
+
+⚠️ **`FExporting` suppresses the screen-only chrome** — the selection, search
+highlights and the code block's hover Copy button. A PDF is not "the view as it
+happens to be right now".
+
+Two more details worth knowing:
+
+- `PaintDocument` starts with `Clear(BackgroundColor)`, and **`Clear` fills the
+  clip**, so the page-wide fill happens *before* the clip is narrowed.
+- The export lays the document out at the page width and therefore calls
+  `InvalidateLayout` when it finishes, so the next repaint rebuilds at the
+  viewport width. A headless caller must re-`MeasureDocument` afterwards.
+
+**Known limitation: links are drawn but not clickable.** Skia's PDF backend can
+attach URL annotations (`SkAnnotateRectWithURL`), but the Delphi `ISkCanvas`
+binding does not expose them, so there is nothing to hang `TRhoLinkHit.Rects`
+on. Everything needed on our side already exists if the binding ever gains it.
+
+Verify with the render tool's `pdf` mode, which writes the PDF beside the PNG
+and reports its page count (composes with `dark`):
+
+```
+MarkdownRender.exe Demo\sample.md out.png 800 14 pdf [dark]
 ```
 
 ### Reference links — three forms, and the order matters

@@ -34,6 +34,8 @@ type
     MenuItem6: TMenuItem;
     mnuQuit: TMenuItem;
     MenuItem8: TMenuItem;
+    mnuExportPdf: TMenuItem;
+    MenuItem9: TMenuItem;
     btnSaveAs: TSpeedButton;
     FindBar: TLayout;
     lblFind: TLabel;
@@ -69,6 +71,7 @@ type
     procedure btnOpenClosePanelClick(Sender: TObject);
     procedure MenuItem8Click(Sender: TObject);
     procedure mnuFindClick(Sender: TObject);
+    procedure mnuExportPdfClick(Sender: TObject);
     procedure edtFindChangeTracking(Sender: TObject);
     procedure edtFindKeyDown(Sender: TObject; var Key: Word;
       var KeyChar: WideChar; Shift: TShiftState);
@@ -90,6 +93,7 @@ type
     FCurrentFile: string;
     function SelectMDFileForOpening : string;
     function SelectMDFileForSaving : string;
+    function SelectPdfFileForSaving : string;
     // The one place a document is loaded from disk. There are four ways in -
     // the Open button, a dropped file, a command-line argument and (indirectly)
     // Save As - and when each did its own loading, only the Open button
@@ -228,6 +232,32 @@ begin
     SaveAs
   else
     WriteToFile(FCurrentFile);
+end;
+
+// Export the preview to PDF. The viewer paginates and writes the file itself;
+// all the host does is name it. No confirmation dialog: the user just chose the
+// file, and an OK box to dismiss is a click for nothing. A failure DOES get a
+// message - typically the PDF is still open in a reader, which locks it. The
+// current theme is
+// carried across deliberately - a dark preview exports a dark PDF - which is
+// what SaveToPdf's PaintBackground default gives.
+procedure TfrmMain.mnuExportPdfClick(Sender: TObject);
+var
+  FileName: string;
+begin
+  FileName := SelectPdfFileForSaving;
+  if FileName = '' then
+    Exit;
+  if ExtractFileExt(FileName) = '' then
+    FileName := FileName + '.pdf';
+  try
+    FViewer.SaveToPdf(FileName);
+  except
+    on E: Exception do
+      ShowMessage(Format('Could not export the PDF to'#13#10'%s'#13#10#13#10 +
+        '%s'#13#10#13#10'If the file is open in a PDF reader, close it and try again.',
+        [FileName, E.Message]));
+  end;
 end;
 
 procedure TfrmMain.btnSaveAsClick(Sender: TObject);
@@ -513,6 +543,35 @@ begin
   end;
 end;
 
+
+// The Save As dialog's PDF twin. It defaults to the document's own name with a
+// .pdf extension, so exporting an open file needs no typing.
+function TfrmMain.SelectPdfFileForSaving : string;
+var
+  SaveDialog: TSaveDialog;
+begin
+  SaveDialog := TSaveDialog.Create(nil);
+  try
+    SaveDialog.Title := 'Export as PDF';
+    SaveDialog.Filter := 'PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*';
+    SaveDialog.FilterIndex := 1;
+    SaveDialog.DefaultExt := 'pdf';
+    if FCurrentFile <> '' then
+    begin
+      SaveDialog.InitialDir := ExtractFilePath(FCurrentFile);
+      SaveDialog.FileName := ChangeFileExt(ExtractFileName(FCurrentFile), '.pdf');
+    end
+    else
+      SaveDialog.InitialDir := GetCurrentDir;
+    SaveDialog.Options := [TOpenOption.ofOverwritePrompt];
+
+    Result := '';
+    if SaveDialog.Execute then
+      Result := SaveDialog.FileName;
+  finally
+    SaveDialog.Free;
+  end;
+end;
 
 function TfrmMain.SelectMDFileForSaving : string;
 var

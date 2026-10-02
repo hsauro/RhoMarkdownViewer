@@ -263,6 +263,56 @@ type
     Len: Integer;
   end;
 
+  // ---------------------------------------------------------------------
+  // PDF export
+  // ---------------------------------------------------------------------
+
+  // Standard page sizes, in POINTS (1pt = 1/72"), which is the unit a PDF
+  // canvas works in. rpsCustom leaves PageWidth/PageHeight untouched.
+  TRhoPdfPageSize = (rpsLetter, rpsA4, rpsLegal, rpsA5, rpsCustom);
+
+  // How SaveToPdf lays the document onto pages. Every measurement is in
+  // points. Defaults gives US Letter with 1" margins, page numbers on.
+  //
+  // Size on paper. A screen FontSize is a size for a monitor (the editor uses
+  // 20), and printed literally as points it gives 40pt headings and a few
+  // dozen words a page. So BodyFontSize (default 11pt) picks the printed size
+  // of body text, and the whole document - headings, code, padding, images -
+  // is scaled by BodyFontSize / FontSize to keep its proportions.
+  //
+  // Scale is a further zoom on top of that: the markdown is laid out at
+  // (content width / effective scale) and drawn scaled back up, so 0.9 fits
+  // more words per line at a proportionally smaller size. With BodyFontSize
+  // = 0, Scale alone applies and FontSize is taken as points (14 -> 14pt).
+  TRhoPdfOptions = record
+    PageWidth: Single;
+    PageHeight: Single;
+    MarginLeft: Single;
+    MarginTop: Single;
+    MarginRight: Single;
+    MarginBottom: Single;
+    BodyFontSize: Single;
+    Scale: Single;
+    // Draws "n / m" centred in the bottom margin. Off for a single-page export
+    // is a host decision; the page count is not known until layout, so this is
+    // simply honoured as asked.
+    PageNumbers: Boolean;
+    // Fills each page with the viewer's BackgroundColor (the default), so the
+    // PDF matches what is on screen. Set it False for white paper - but only
+    // with a light theme: a dark theme's text on white paper is unreadable.
+    PaintBackground: Boolean;
+    // Written into the PDF's document information dictionary. An empty Title
+    // falls back to the file name in SaveToPdf.
+    Title: string;
+    Author: string;
+    Subject: string;
+    Keywords: string;
+    class function Defaults: TRhoPdfOptions; static;
+    // Sets PageWidth/PageHeight from a standard size. Portrait; swap the two
+    // afterwards for landscape.
+    procedure SetPageSize(const ASize: TRhoPdfPageSize);
+  end;
+
   TRhoMarkdownViewer = class(TControl)
   private
     FContent: TSkPaintBox;
@@ -279,6 +329,10 @@ type
     FContentHeight: Single;
     FScrollY: Single;
     FUpdatingScrollBar: Boolean;
+    // True only while SaveToPdf is driving the paint pass. Suppresses the
+    // screen-only chrome that must never reach paper: the selection, search
+    // highlights and the code block's hover Copy button.
+    FExporting: Boolean;
 
     FBackgroundColor: TAlphaColor;
     FTextColor: TAlphaColor;
@@ -594,6 +648,25 @@ type
     function MeasureDocument(const AWidth: Single): Single;
     procedure RenderToCanvas(const ACanvas: ISkCanvas;
       const AWidth, AHeight: Single; const AScrollY: Single = 0);
+
+    // PDF export. The document is laid out at the page's content width and
+    // paginated, then drawn through the SAME layout and paint path the screen
+    // uses - so what prints is what is rendered, syntax colouring, tables,
+    // images, math and all. Skia writes the PDF; no external tool is involved.
+    //
+    // Page breaks fall on block boundaries wherever a block fits on a page
+    // (and a heading is never left stranded at the foot of one); a block taller
+    // than a page - a long code block or a tall image - is split.
+    //
+    // Known limitation: links are drawn but not clickable. Skia's PDF backend
+    // can attach URL annotations, but the Delphi ISkCanvas binding does not
+    // expose them.
+    // All three return the number of pages written.
+    function SaveToPdf(const AFileName: string): Integer; overload;
+    function SaveToPdf(const AFileName: string;
+      const AOptions: TRhoPdfOptions): Integer; overload;
+    function SavePdfToStream(const AStream: TStream;
+      const AOptions: TRhoPdfOptions): Integer;
 
     property MarkdownText: string read GetMarkdownText write SetMarkdownText;
     property ScrollY: Single read FScrollY;
@@ -4390,9 +4463,13 @@ begin
     end;
 
     // Search highlights sit under the selection; both are behind every glyph
-    // and above the block chrome.
-    PaintSearchMatches(ACanvas, I, AScrollY);
-    PaintSelection(ACanvas, I, AScrollY);
+    // and above the block chrome. Neither belongs on paper - a PDF is not "the
+    // view as it happens to be right now" - so the export pass skips them.
+    if not FExporting then
+    begin
+      PaintSearchMatches(ACanvas, I, AScrollY);
+      PaintSelection(ACanvas, I, AScrollY);
+    end;
 
     if Length(FLayout[I].Rows) > 0 then
       PaintTableText(ACanvas, FLayout[I], ScreenTop);
@@ -4440,7 +4517,8 @@ begin
     end;
 
     // The Copy button floats over the code it belongs to, so it paints last.
-    if FShowCodeCopyButton and ((I = FHoveredCode) or (I = FCopiedCode)) then
+    if FShowCodeCopyButton and not FExporting and
+       ((I = FHoveredCode) or (I = FCopiedCode)) then
       PaintCodeButton(ACanvas, FLayout[I], ScreenTop, I);
   end;
 end;
@@ -4510,6 +4588,221 @@ procedure TRhoMarkdownViewer.RenderToCanvas(const ACanvas: ISkCanvas;
   const AWidth, AHeight: Single; const AScrollY: Single);
 begin
   PaintDocument(ACanvas, AWidth, AHeight, AScrollY);
+end;
+
+
+{ TRhoPdfOptions }
+
+class function TRhoPdfOptions.Defaults: TRhoPdfOptions;
+begin
+  Result := Default(TRhoPdfOptions);
+  Result.SetPageSize(rpsLetter);
+  Result.MarginLeft := 72;      // 1 inch
+  Result.MarginTop := 72;
+  Result.MarginRight := 72;
+  Result.MarginBottom := 72;
+  Result.BodyFontSize := 11;
+  Result.Scale := 1;
+  Result.PageNumbers := True;
+  Result.PaintBackground := True;
+end;
+
+procedure TRhoPdfOptions.SetPageSize(const ASize: TRhoPdfPageSize);
+begin
+  case ASize of
+    rpsLetter: begin PageWidth := 612; PageHeight := 792;  end;  // 8.5 x 11 in
+    rpsA4:     begin PageWidth := 595; PageHeight := 842;  end;  // 210 x 297 mm
+    rpsLegal:  begin PageWidth := 612; PageHeight := 1008; end;  // 8.5 x 14 in
+    rpsA5:     begin PageWidth := 420; PageHeight := 595;  end;  // 148 x 210 mm
+    rpsCustom: ;                                                 // left alone
+  end;
+end;
+
+{ PDF export }
+
+function TRhoMarkdownViewer.SaveToPdf(const AFileName: string): Integer;
+begin
+  Result := SaveToPdf(AFileName, TRhoPdfOptions.Defaults);
+end;
+
+function TRhoMarkdownViewer.SaveToPdf(const AFileName: string;
+  const AOptions: TRhoPdfOptions): Integer;
+var
+  Stream: TFileStream;
+  Options: TRhoPdfOptions;
+begin
+  Options := AOptions;
+  if Options.Title = '' then
+    Options.Title := TPath.GetFileNameWithoutExtension(AFileName);
+  Stream := TFileStream.Create(AFileName, fmCreate);
+  try
+    Result := SavePdfToStream(Stream, Options);
+  finally
+    Stream.Free;
+  end;
+end;
+
+function TRhoMarkdownViewer.SavePdfToStream(const AStream: TStream;
+  const AOptions: TRhoPdfOptions): Integer;
+var
+  Opt: TRhoPdfOptions;
+  Doc: ISkDocument;
+  Canvas: ISkCanvas;
+  Meta: TSkPDFMetadata;
+  PageW, PageH, ContentW, ContentH, PaintW, PageDocH, DocH: Single;
+  MarginL, MarginT, MarginB: Single;
+  Breaks: TArray<Single>;
+  PageIndex: Integer;
+  Paint: ISkPaint;
+  Footer: ISkParagraph;
+  Style: ISkTextStyle;
+  Caption: string;
+  PageTop, PageBottom, PageUsed: Single;
+
+  // Where the page that starts at AStart should end. Prefers the top of the
+  // first block that would straddle the bottom edge, so a paragraph, table or
+  // image is not sliced in half; falls back to the hard edge when that block
+  // starts the page or is taller than a page (a long code block), which are
+  // exactly the cases that must be split to make progress.
+  function BreakAfter(const AStart: Single): Single;
+  var
+    J, K: Integer;
+    Edge, BlockTop, BlockBottom: Single;
+  begin
+    Edge := AStart + PageDocH;
+    Result := Edge;
+    for J := 0 to High(FLayout) do
+    begin
+      BlockTop := FLayout[J].Top;
+      BlockBottom := BlockTop + FLayout[J].Height;
+      if BlockBottom <= Edge + 0.5 then
+        Continue;                       // fits entirely above the edge
+      if BlockTop >= Edge then
+        Break;                          // already starts on the next page
+      if (BlockTop > AStart + 0.5) and (FLayout[J].Height <= PageDocH) then
+      begin
+        Result := BlockTop;
+        // Never leave a heading stranded at the foot of a page: pull the run of
+        // headings immediately above the break down with its content.
+        K := J - 1;
+        while (K >= 0) and (FLayout[K].Block <> nil) and
+              (FLayout[K].Block.Kind = bkHeading) and
+              (FLayout[K].Top > AStart + 0.5) do
+        begin
+          Result := FLayout[K].Top;
+          Dec(K);
+        end;
+      end;
+      Break;
+    end;
+    if Result <= AStart + 0.5 then
+      Result := Edge;                   // always advance
+  end;
+
+begin
+  Opt := AOptions;
+  if (Opt.PageWidth <= 0) or (Opt.PageHeight <= 0) then
+    Opt.SetPageSize(rpsLetter);
+  if Opt.Scale <= 0 then
+    Opt.Scale := 1;
+  // Fold the printed body size into the one scale the rest of this routine
+  // uses, so pagination, clipping and the layout width all agree on it.
+  if (Opt.BodyFontSize > 0) and (FFontSize > 0) then
+    Opt.Scale := Opt.Scale * Opt.BodyFontSize / FFontSize;
+
+  PageW := Opt.PageWidth;
+  PageH := Opt.PageHeight;
+  MarginL := Max(0, Opt.MarginLeft);
+  MarginT := Max(0, Opt.MarginTop);
+  MarginB := Max(0, Opt.MarginBottom);
+  ContentW := Max(1, PageW - MarginL - Max(0, Opt.MarginRight));
+  ContentH := Max(1, PageH - MarginT - MarginB);
+
+  // PaintDocument takes a viewport width and insets ContentPadding itself, so
+  // ask for the content width PLUS that padding and shift it back out again.
+  // The margins are the padding here, and a code block's background should
+  // reach the full content width.
+  PaintW := ContentW / Opt.Scale + FContentPadding * 2;
+  PageDocH := ContentH / Opt.Scale;
+
+  DocH := MeasureDocument(PaintW);
+
+  Breaks := [0];
+  while Breaks[High(Breaks)] + PageDocH < DocH - 0.5 do
+    Breaks := Breaks + [BreakAfter(Breaks[High(Breaks)])];
+
+  Result := Length(Breaks);
+
+  Meta := TSkPDFMetadata.Create(Opt.Title, Opt.Author, Opt.Subject,
+    Opt.Keywords, 'TRhoMarkdownViewer');
+  Meta.Creation := Now;
+  Meta.Modified := Meta.Creation;
+
+  FExporting := True;
+  try
+    Doc := TSkDocument.MakePDF(AStream, Meta);
+    for PageIndex := 0 to High(Breaks) do
+    begin
+      Canvas := Doc.BeginPage(PageW, PageH);
+
+      Paint := TSkPaint.Create;
+      if Opt.PaintBackground then
+        Paint.Color := FBackgroundColor
+      else
+        Paint.Color := TAlphaColors.White;
+      Canvas.DrawRect(RectF(0, 0, PageW, PageH), Paint);
+
+      if Opt.PageNumbers then
+      begin
+        Caption := Format('%d / %d', [PageIndex + 1, Length(Breaks)]);
+        Style := BaseTextStyle(Max(7, FFontSize * Opt.Scale * 0.75), False, False, Caption);
+        Style.Color := FRuleColor;
+        Footer := BuildRun(Caption, Style);
+        Footer.Paint(Canvas, (PageW - Footer.LongestLine) / 2,
+          PageH - MarginB + Max(2, (MarginB - Footer.Height) / 2));
+      end;
+
+      // Clip to the content box, then let the ordinary paint pass run with the
+      // page's slice of the document scrolled into view. Note PaintDocument
+      // starts with Clear(BackgroundColor), and Clear fills the CLIP - which is
+      // why the page-wide fill above happens before the clip is narrowed, and
+      // why a white page survives a dark-themed viewer only outside it.
+      PageTop := Breaks[PageIndex];
+      if PageIndex < High(Breaks) then
+        PageBottom := Breaks[PageIndex + 1]
+      else
+        PageBottom := DocH;
+      PageUsed := Min(PageDocH, PageBottom - PageTop);
+
+      Canvas.Save;
+      try
+        Canvas.Translate(MarginL, MarginT);
+        // Clip to what this page actually holds, NOT to the full content box.
+        // A page that breaks early has room left over, and PaintDocument paints
+        // any block that STARTS within its height - so the block deferred to the
+        // next page would otherwise be drawn into that leftover space and
+        // sliced mid-line, exactly the split the break logic just avoided.
+        // Horizontally it spans the whole page: only the vertical clip matters,
+        // and a wide list marker (100.) deliberately hangs left of the column.
+        Canvas.ClipRect(RectF(-MarginL, 0, PageW - MarginL, PageUsed * Opt.Scale));
+        Canvas.Scale(Opt.Scale, Opt.Scale);
+        Canvas.Translate(-FContentPadding, 0);
+        RenderToCanvas(Canvas, PaintW, PageUsed, PageTop);
+      finally
+        Canvas.Restore;
+      end;
+
+      Doc.EndPage;
+    end;
+    Doc.Close;
+    Doc := nil;
+  finally
+    FExporting := False;
+  end;
+
+  // The layout is now sized for the page, not the control. Drop it so the next
+  // repaint rebuilds at the viewport width.
+  InvalidateLayout;
 end;
 
 initialization

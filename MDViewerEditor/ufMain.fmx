@@ -395,6 +395,15 @@ object frmMain: TfrmMain
         Locked = True
         Text = '-'
       end
+      object mnuExportPdf: TMenuItem
+        Locked = True
+        Text = 'Export as PDF...'
+        OnClick = mnuExportPdfClick
+      end
+      object MenuItem9: TMenuItem
+        Locked = True
+        Text = '-'
+      end
       object mnuQuit: TMenuItem
         Locked = True
         Text = 'Quit'

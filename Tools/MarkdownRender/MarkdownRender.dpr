@@ -4,7 +4,7 @@ program MarkdownRender;
   Renders a markdown file to a PNG through the real TRhoMarkdownViewer layout
   and paint path, with no window involved.
 
-    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|anchors|center|right|search <term>]
+    MarkdownRender <input.md> <output.png> [width] [fontSize] [links|select|dark|html|pdf|anchors|center|right|search <term>]
 
   Passing "links" as the fifth argument overlays a translucent marker wherever
   LinkAt reports a link, by probing the document on a grid. That verifies the
@@ -55,6 +55,8 @@ var
   Slug: string;
   Ok: Boolean;
   Lines: TStringList;
+  PdfFile: string;
+  Pages: Integer;
   Blocks: TMarkDownBlockList;
 begin
   if ParamCount < 2 then
@@ -187,6 +189,22 @@ begin
         Blocks.Free;
         Lines.Free;
       end;
+    end;
+
+    if (ParamCount >= 5) and SameText(ParamStr(5), 'pdf') then
+    begin
+      // Writes the PDF export beside the PNG. The PDF is paginated at the page
+      // size, so it is laid out at a DIFFERENT width from the PNG above - which
+      // is exactly what makes this worth checking separately.
+      PdfFile := TPath.ChangeExtension(OutputFile, '.pdf');
+      Pages := Viewer.SaveToPdf(PdfFile);
+      Writeln(Format('pdf     -> %s  (%d pages, %d bytes)',
+        [PdfFile, Pages, TFile.GetSize(PdfFile)]));
+      // SaveToPdf lays the document out at the page width and drops the layout
+      // afterwards, so re-measure before the PNG snapshot below.
+      Viewer.MeasureDocument(Width);
+      Surface := TSkSurface.MakeRaster(Round(Width), Round(Height));
+      Viewer.RenderToCanvas(Surface.Canvas, Width, Height, 0);
     end;
 
     if (ParamCount >= 5) and SameText(ParamStr(5), 'links') then
