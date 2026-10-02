@@ -158,6 +158,7 @@
         <DCCReference Include="ufMain.pas">
             <Form>frmMain</Form>
         </DCCReference>
+        <DCCReference Include="ufAbout.pas"/>
         <DCCReference Include="uExamples.pas">
             <Form>$R *.res</Form>
         </DCCReference>

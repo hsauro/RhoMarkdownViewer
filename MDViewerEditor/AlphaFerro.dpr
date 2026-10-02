@@ -6,7 +6,8 @@ uses
   FMX.Skia,
   uFontHandling in 'uFontHandling.pas',
   ufMain in 'ufMain.pas' {frmMain},
-  uExamples in 'uExamples.pas';
+  uExamples in 'uExamples.pas',
+  ufAbout in 'ufAbout.pas';
 
 {$R *.res}
 

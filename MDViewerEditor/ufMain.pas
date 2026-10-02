@@ -136,11 +136,11 @@ implementation
 
 {$R *.fmx}
 
-Uses IOUtils;
+Uses IOUtils, ufAbout;
 
 Const
    VERSION = '1.0';
-   APP_TITLE = 'Markdown View/Editor';
+   APP_TITLE = 'AlphaFerro';
 
 type
   TComboBoxHelper = class helper for TComboBox
@@ -395,7 +395,7 @@ end;
 
 procedure TfrmMain.MenuItem8Click(Sender: TObject);
 begin
-  showmessage ('Version: ' + VERSION);
+  ShowAboutBox(VERSION, FDark);
 end;
 
 { ---- find bar ----
