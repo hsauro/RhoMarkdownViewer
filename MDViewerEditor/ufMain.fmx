@@ -386,10 +386,12 @@ object frmMain: TfrmMain
       object mnuNew: TMenuItem
         Locked = True
         Text = 'New'
+        OnClick = btnNewClick
       end
       object mnuOpen: TMenuItem
         Locked = True
         Text = 'Open'
+        OnClick = btnOpenClick
       end
       object MenuItem6: TMenuItem
         Locked = True

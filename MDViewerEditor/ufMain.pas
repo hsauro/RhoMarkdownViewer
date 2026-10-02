@@ -103,6 +103,9 @@ type
     // the file name label and FCurrentFile cannot drift out of step with what
     // was actually written.
     procedure WriteToFile(const AFileName: string);
+    // The one place the document's display name is set: the file name label
+    // and the window caption, so the two cannot disagree.
+    procedure SetDocumentName(const AName: string);
     // Prompts, then writes. Returns False if the user cancelled.
     function SaveAs: Boolean;
     // Proportional two-way scroll sync between the editor (Memo1) and the
@@ -137,6 +140,7 @@ Uses IOUtils;
 
 Const
    VERSION = '1.0';
+   APP_TITLE = 'Markdown View/Editor';
 
 type
   TComboBoxHelper = class helper for TComboBox
@@ -161,7 +165,7 @@ begin
    // A new document has no file yet, so the next Save must ask. Leaving the old
    // path here would quietly overwrite the previously open document.
    FCurrentFile := '';
-   lblFileName.Text := '(untitled)';
+   SetDocumentName('(untitled)');
 end;
 
 procedure TfrmMain.OpenDocument(const AFileName: string);
@@ -170,7 +174,7 @@ begin
   // image paths in the document resolve. Assigning MarkdownText does not.
   FViewer.LoadFromFile(AFileName);
   TextMemo.Text := FViewer.MarkdownText;
-  lblFileName.Text := ExtractFileName(AFileName);
+  SetDocumentName(ExtractFileName(AFileName));
   // Save now has somewhere to write to without asking.
   FCurrentFile := AFileName;
 end;
@@ -198,6 +202,12 @@ begin
      end;
 end;
 
+procedure TfrmMain.SetDocumentName(const AName: string);
+begin
+  lblFileName.Text := AName;
+  Caption := AName + ' - ' + APP_TITLE;
+end;
+
 procedure TfrmMain.WriteToFile(const AFileName: string);
 begin
   // UTF8WithoutBOM: markdown is conventionally BOM-less UTF-8, and the viewer's
@@ -206,7 +216,7 @@ begin
   // round trip, which is the same trap documented for reading.
   TFile.WriteAllText(AFileName, TextMemo.Text, TEncoding.UTF8);
   FCurrentFile := AFileName;
-  lblFileName.Text := ExtractFileName(AFileName);
+  SetDocumentName(ExtractFileName(AFileName));
 end;
 
 function TfrmMain.SaveAs: Boolean;
@@ -295,7 +305,7 @@ begin
    // A built-in example is not a file on disk. Leaving the previous document's
    // path here would make Save silently overwrite THAT file with the example.
    FCurrentFile := '';
-   lblFileName.Text := cboCombo.Selected.Text;
+   SetDocumentName(cboCombo.Selected.Text);
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
@@ -326,7 +336,7 @@ begin
   // the magic number.
   mnuFind.ShortCut := TextToShortCut('Ctrl+F');
 
-  lblFileName.Text := '(untitled)';
+  SetDocumentName('(untitled)');
   FDark := False;
 
   if ParamCount > 0 then

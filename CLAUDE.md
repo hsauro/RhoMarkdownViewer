@@ -440,7 +440,7 @@ Mirror RhoEditor:
   `Demo/commonmark-gaps.md` is its counterpart: constructs that are **known not
   to render correctly**, with expected-vs-actual for each. Move a case into
   `sample.md` once it works. See "CommonMark gaps" below.
-- `MDViewerEditor/` — `MarkDownViewerEditorProject.dproj`, a live side-by-side
+- `MDViewerEditor/` — `AlphaFerro.dproj`, a live side-by-side
   editor: a left `TMemo` and a right `TRhoMarkdownViewer` split by a
   `TSplitter`. The **View** button (and the sample combo) push the memo text into
   `MarkdownText`; **Open** loads a `.md` file. `ufMain.pas` wires two things worth
