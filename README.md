@@ -2,6 +2,8 @@
 
 A Skia-backed markdown viewer component for **FMX / Delphi 13 (RAD Studio 37.0)**.
 
+This code was developed using a combination of Human effort and AI assistance.
+
 The project was inspired by the VCL Markdown project from Alister Christie:
 
 https://github.com/alisterchristie/NativeMarkdownViewer
